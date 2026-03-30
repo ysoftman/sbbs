@@ -179,7 +179,7 @@ CREATE POLICY "Public read access" ON storage.objects
 
 ```bash
 # 1. Firebase Storage에서 파일 다운로드
-gsutil -m cp -r gs://ysoftman-firebase.appspot.com/ ./backup/
+mkdir -p ./backup && gcloud storage cp -r gs://ysoftman-firebase.appspot.com/ ./backup/
 
 # 2. Supabase 대시보드에서 드래그앤드롭 업로드
 #    또는 curl 로 업로드
