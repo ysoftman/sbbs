@@ -139,9 +139,11 @@ const loadMessages = async (imageName, listId) => {
   }
   el.innerHTML = data
     .map((row) => {
-      const date = new Date(row.created_at).toLocaleString();
+      const d = new Date(row.created_at);
+      const date = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
       const user = row.user_name || "Unknown";
-      return `<div class="msg-item"><span class="nes-text is-disabled">${date}</span> <span class="nes-text is-primary">${user}</span> ${row.message}</div>`;
+      const msg = row.message.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+      return `<div class="msg-item"><span class="nes-text is-disabled">${date}</span> <span class="nes-text is-primary">${user}</span> ${msg}</div>`;
     })
     .join("");
 };
