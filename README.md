@@ -91,6 +91,25 @@ BEGIN
   RETURN new_cnt;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 이미지 메시지 테이블 생성
+CREATE TABLE IF NOT EXISTS image_messages (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  image_name TEXT NOT NULL,
+  message TEXT NOT NULL,
+  user_name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- RLS 활성화
+ALTER TABLE image_messages ENABLE ROW LEVEL SECURITY;
+
+-- 읽기 허용 정책
+CREATE POLICY "Allow read" ON image_messages FOR SELECT USING (true);
+
+-- 인증된 사용자만 쓰기 허용
+CREATE POLICY "Allow write for authenticated" ON image_messages
+  FOR ALL USING (auth.uid() IS NOT NULL);
 ```
 
 ### Storage 파일명 제한 (non-ASCII 문자 불가)

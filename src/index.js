@@ -5,6 +5,9 @@ import { supabase } from "./common.js";
 
 const STORAGE_BUCKET = "images";
 
+// 파일명을 HTML id로 사용할 수 있도록 변환
+const toSafeId = (name) => name.replaceAll(/[^a-zA-Z0-9]/g, "_");
+
 export const loadImages = async (htmlId, imageNames) => {
   document.getElementById(htmlId).innerHTML = "";
   let isImage = true;
@@ -14,13 +17,32 @@ export const loadImages = async (htmlId, imageNames) => {
     if (name.endsWith("mp4")) {
       isImage = false;
     }
+    const msgId = toSafeId(name);
+    const msgHtml =
+      `<div class="msg-list" id="msg_list_${msgId}"></div>` +
+      `<div class="img-message" id="msg_form_${msgId}" style="display:none">` +
+      `<textarea class="nes-textarea" id="msg_${msgId}" rows="2" placeholder="message..."></textarea>` +
+      `<button class="nes-btn is-primary" id="msg_save_${msgId}">save</button>` +
+      `<span class="nes-text is-success" id="msg_status_${msgId}"></span>` +
+      `</div>`;
     if (isImage) {
-      item = `<div class="nes-container with-title"><p class="title">${name} (<span id="${name}_img_size"></span>)</p><div id="${name}_img"></div></div>`;
+      item =
+        `<div class="nes-container with-title">` +
+        `<p class="title">${name} (<span id="${name}_img_size"></span>)</p>` +
+        `<div class="img-content-row"><div id="${name}_img"></div><div class="img-side-msg">${msgHtml}</div></div></div>`;
     } else {
-      item = `<div class="nes-container with-title"><p class="title">${name}</p><div id="${name}_video"></div></div>`;
+      item =
+        `<div class="nes-container with-title">` +
+        `<p class="title">${name}</p>` +
+        `<div class="img-content-row"><div id="${name}_video"></div><div class="img-side-msg">${msgHtml}</div></div></div>`;
     }
     document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
   }
+  // 로그인 상태 확인
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser();
+
   for (const name of imageNames) {
     // supabase storage 에 저장된 이미지 public url 불러오기
     const {
@@ -52,7 +74,76 @@ export const loadImages = async (htmlId, imageNames) => {
         document.getElementById(`${name}_img_size`).innerHTML = imgSize;
       });
     }
+    // 메시지 로드
+    const msgId = toSafeId(name);
+    await loadMessages(name, `msg_list_${msgId}`);
+    // 로그인한 사용자만 메시지 입력 가능
+    if (currentUser) {
+      const formEl = document.getElementById(`msg_form_${msgId}`);
+      if (formEl) formEl.style.display = "";
+      const saveBtn = document.getElementById(`msg_save_${msgId}`);
+      if (saveBtn) {
+        saveBtn.addEventListener("click", async () => {
+          const textarea = document.getElementById(`msg_${msgId}`);
+          const statusEl = document.getElementById(`msg_status_${msgId}`);
+          if (!textarea.value.trim()) return;
+          const userName = currentUser.is_anonymous
+            ? "Anonymous"
+            : currentUser.user_metadata?.full_name || currentUser.email || "Unknown";
+          await saveMessage(name, textarea.value, userName);
+          textarea.value = "";
+          statusEl.innerHTML = "saved!";
+          setTimeout(() => {
+            statusEl.innerHTML = "";
+          }, 2000);
+          await loadMessages(name, `msg_list_${msgId}`);
+        });
+      }
+    }
   }
+};
+
+// 이미지 메시지 저장
+const saveMessage = async (imageName, message, userName) => {
+  const { error } = await supabase.from("image_messages").insert({
+    image_name: imageName,
+    message: message,
+    user_name: userName,
+  });
+  if (error) {
+    console.log("saveMessage error:", error);
+    alert(`saveMessage error: ${error.message}`);
+  }
+};
+
+// 이미지 메시지 최근 10개 조회
+const loadMessages = async (imageName, listId) => {
+  const el = document.getElementById(listId);
+  if (!el) {
+    console.log("loadMessages: element not found:", listId);
+    return;
+  }
+  const { data, error } = await supabase
+    .from("image_messages")
+    .select("id, message, user_name, created_at")
+    .eq("image_name", imageName)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (error) {
+    console.log("loadMessages error:", error);
+    el.innerHTML = `<div class="msg-item"><span class="nes-text is-error">${error.message}</span></div>`;
+    return;
+  }
+  if (!data || data.length === 0) {
+    return;
+  }
+  el.innerHTML = data
+    .map((row) => {
+      const date = new Date(row.created_at).toLocaleString();
+      const user = row.user_name || "Unknown";
+      return `<div class="msg-item"><span class="nes-text is-disabled">${date}</span> <span class="nes-text is-primary">${user}</span> ${row.message}</div>`;
+    })
+    .join("");
 };
 
 // get image width height
@@ -143,6 +234,11 @@ export const getVisitCnt = async (docName, htmlId) => {
 
 const version = `last_version: ${__LAST_VERSION_TAG__}<br>last_commit_hash: ${__LAST_COMMIT_HASH__}<br>last_commit_date: ${__LAST_COMMIT_DATE__}<br>last_commit_message: ${__LAST_COMMIT_MESSAGE__}<br>`;
 document.getElementById("version").innerHTML = version;
+
+document.getElementById("btn_version").addEventListener("click", () => {
+  const el = document.getElementById("version_info");
+  el.style.display = el.style.display === "none" ? "" : "none";
+});
 
 async function loadImg(path) {
   const imgNames = await getImageList(path);

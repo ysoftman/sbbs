@@ -55,6 +55,28 @@ img.thumbnail:hover {
   max-height: 95%;
 }
 
+.nes-btn.is-purple {
+  color: #fff;
+  background-color: #8b5cf6;
+}
+
+.nes-btn.is-purple::after {
+  box-shadow:
+    inset -4px -4px #6d28d9,
+    inset -4px -4px #6d28d9;
+}
+
+.nes-btn.is-purple:hover {
+  color: #fff;
+  background-color: #7c3aed;
+}
+
+.nes-btn.is-purple:active,
+.nes-btn.is-purple:focus {
+  box-shadow: inset -4px -4px #5b21b6;
+  background-color: #7c3aed;
+}
+
 .card-columns {
   @include media-breakpoint-only(lg) {
     column-count: 4;
@@ -63,24 +85,72 @@ img.thumbnail:hover {
     column-count: 5;
   }
 }
-.nes-octocat {
-  align-self: flex-end;
-  display: inline-block;
+.version-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.version-row .nes-balloon {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.version-row .nes-octocat {
+  flex-shrink: 0;
 }
 
 .github-link {
-  /*position: fixed;*/
-  /*z-index: 999;*/
-  top: 350px;
-  right: 10px;
-  height: 100px;
   color: #333;
   text-decoration: none;
-  /*transition: all 0.3s ease;*/
 }
 
 .items > * {
   margin-bottom: 1.5rem;
+}
+
+.img-content-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.img-side-msg {
+  flex: 1;
+  min-width: 0;
+}
+
+.img-message {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.img-message .nes-textarea {
+  flex: 1;
+}
+
+.img-message .nes-btn {
+  flex-shrink: 0;
+}
+
+.msg-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+@media screen and (max-width: 768px) {
+  .img-content-row {
+    flex-direction: column;
+  }
+}
+
+.msg-item {
+  padding: 4px 0;
+  border-bottom: 2px dashed #ccc;
+  font-size: 12px;
+  word-break: break-word;
 }
 
 .index-navbar {

@@ -24,6 +24,9 @@
               <b>index</b>
             </button>
           </a>
+          <button type="button" class="nes-btn is-purple" id="btn_version">
+            version
+          </button>
           <span>
             <button class="nes-btn is-primary" id="login_anonymous">
               login anonymous
@@ -36,28 +39,30 @@
       </div>
     </div>
     <div class="index-body nes-text">
-      <div class="main">
+      <div class="main" id="version_info" style="display: none;">
         <a
           href="https://github.com/ysoftman/supabase"
           target="_blank"
           class="github-link"
         >
-          <p class="nes-balloon from-right">
-            <span class="nes-text is-primary">ysoftman supabase test</span
-            ><br />
-            <span class="nes-text is-error"
-              >this page uses NES.CSS and Press_Start_2P font</span
-            ><br />
-            <span id="version"></span>
-          </p>
-          <i class="nes-octocat animate"></i>
+          <div class="version-row">
+            <p class="nes-balloon from-right">
+              <span class="nes-text is-primary">ysoftman supabase test</span
+              ><br />
+              <span class="nes-text is-error"
+                >this page uses NES.CSS and Press_Start_2P font</span
+              ><br />
+              <span id="version"></span>
+            </p>
+            <i class="nes-octocat animate"></i>
+          </div>
         </a>
       </div>
       <div class="lists">
         <ul class="nes-list is-disc">
           <h1>
             <li>
-              visitCnt from supabase database:
+              visitors:
               <span class="nes-text is-success" id="visitcnt"></span>
             </li>
           </h1>
