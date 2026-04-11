@@ -454,31 +454,40 @@ const parseHash = () => {
 
 const imgDirs = await getImageDirs("");
 for (const dir of imgDirs) {
-  const item = `<button class="nes-btn is-primary" id='load_${dir}'>${dir}</button>`;
+  const item = `<a class="nes-btn is-primary" id="load_${dir}" href="#${encodeURIComponent(dir)}">${dir}</a>`;
   document.getElementById("load_img_buttons").insertAdjacentHTML("beforeend", item);
-  document.getElementById(`load_${dir}`).addEventListener("click", () => {
-    loadImg(dir);
-  });
 }
 
 getVisitCnt("ysoftman", "visitcnt");
 
-const hashInfo = parseHash();
-if (hashInfo && imgDirs.includes(hashInfo.dir)) {
-  loadImg(hashInfo.dir, hashInfo.image);
-} else if (imgDirs.length > 0) {
-  loadImg(imgDirs[0]);
-}
+let loadedDir = "";
 
-// hash 변경 시 해당 이미지로 이동
-window.addEventListener("hashchange", () => {
-  const info = parseHash();
-  if (!info || !imgDirs.includes(info.dir)) return;
-  const targetId = info.image ? `${info.image}_img` : null;
-  const el = targetId ? document.getElementById(targetId) : null;
-  if (el) {
-    el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
-  } else {
+const loadDirFromHash = (info, force = false) => {
+  if (!info || !imgDirs.includes(info.dir)) return false;
+  if (info.image) {
+    const targetId = `${info.image}_img`;
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return true;
+    }
+  }
+  if (info.dir !== loadedDir || force) {
+    loadedDir = info.dir;
     loadImg(info.dir, info.image);
   }
+  return true;
+};
+
+const hashInfo = parseHash();
+if (!loadDirFromHash(hashInfo, true)) {
+  if (imgDirs.length > 0) {
+    loadedDir = imgDirs[0];
+    loadImg(imgDirs[0]);
+  }
+}
+
+// hash 변경 시 카테고리 또는 이미지로 이동
+window.addEventListener("hashchange", () => {
+  loadDirFromHash(parseHash());
 });
