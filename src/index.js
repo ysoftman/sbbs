@@ -107,6 +107,11 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
   const {
     data: { user: currentUser },
   } = await supabase.auth.getUser();
+  let isAdmin = false;
+  if (currentUser) {
+    const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", currentUser.id).single();
+    isAdmin = !!adminRow;
+  }
 
   for (const name of imageNames) {
     // supabase storage 에 저장된 이미지 public url 불러오기
@@ -166,7 +171,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
     // 본인 업로드 파일만 삭제 버튼 표시
     const msgId = toSafeId(name);
     const uploadInfo = uploaderMap[name] || {};
-    if (currentUser && uploadInfo.user_id === currentUser.id) {
+    if (currentUser && (isAdmin || uploadInfo.user_id === currentUser.id)) {
       const delEl = document.getElementById(`file_del_${msgId}`);
       if (delEl) {
         delEl.style.display = "";
@@ -424,18 +429,25 @@ const deleteFile = async (filePath) => {
     alert("Login required");
     return false;
   }
-  // 본인 업로드 파일인지 확인
-  const { data: uploadRow } = await supabase.from("image_uploads").select("user_id").eq("file_path", filePath).single();
-  if (!uploadRow || uploadRow.user_id !== user.id) {
-    alert("You can only delete files you uploaded");
-    return false;
+  // admin 또는 본인 업로드 파일인지 확인
+  const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", user.id).single();
+  if (!adminRow) {
+    const { data: uploadRow } = await supabase
+      .from("image_uploads")
+      .select("user_id")
+      .eq("file_path", filePath)
+      .single();
+    if (!uploadRow || uploadRow.user_id !== user.id) {
+      alert("You can only delete files you uploaded");
+      return false;
+    }
   }
   const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
   if (error) {
     alert(`Delete error: ${error.message}`);
     return false;
   }
-  await supabase.from("image_uploads").delete().eq("file_path", filePath).eq("user_id", user.id);
+  await supabase.from("image_uploads").delete().eq("file_path", filePath);
   await supabase.from("image_messages").delete().eq("image_name", filePath);
   return true;
 };
