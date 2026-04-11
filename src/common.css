@@ -198,6 +198,40 @@ img.thumbnail:hover {
   overflow-y: auto;
 }
 
+#scroll-sentinel {
+  text-align: center;
+  padding: 16px;
+}
+
+.loading-indicator {
+  font-size: 14px;
+  color: #f8c630;
+}
+
+.loading-dots span {
+  animation: blink 1.4s infinite both;
+  font-size: 20px;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
 @media screen and (max-width: 768px) {
   .img-content-row {
     flex-direction: column;

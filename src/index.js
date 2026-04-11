@@ -13,7 +13,6 @@ const maxHeightUpdaters = {};
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml", "video/mp4"];
-let currentDir = "";
 
 const formatFileSize = (bytes) => {
   if (!bytes) return "";
@@ -50,8 +49,8 @@ const showImageOverlay = (url, name) => {
   });
 };
 
-export const loadImages = async (htmlId, imageNames, metaMap = {}) => {
-  document.getElementById(htmlId).innerHTML = "";
+export const loadImages = async (htmlId, imageNames, metaMap = {}, append = false) => {
+  if (!append) document.getElementById(htmlId).innerHTML = "";
   const uploaderMap = {};
   if (imageNames.length > 0) {
     const { data: uploadData } = await supabase
@@ -346,11 +345,12 @@ export const getImageDirs = async (path) => {
   return dirs;
 };
 
-// supabase storage 에 저장된 이미지 list
-export const getImageList = async (path) => {
+// supabase storage 에 저장된 이미지 list (최신순, 페이지네이션)
+export const getImageList = async (path, offset = 0, limit = 1000) => {
   const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(path, {
-    limit: 1000,
-    sortBy: { column: "name", order: "asc" },
+    limit: limit,
+    offset: offset,
+    sortBy: { column: "created_at", order: "desc" },
   });
   if (error) {
     console.log("getImageList error:", error);
@@ -446,16 +446,31 @@ document.getElementById("btn_version").addEventListener("click", () => {
   el.style.display = el.style.display === "none" ? "" : "none";
 });
 
+const IMG_PAGE_SIZE = 10;
+let currentDir = "";
+let currentOffset = 0;
+let isLoadingMore = false;
+let allImagesLoaded = false;
+
 async function loadImg(path, scrollTarget) {
   currentDir = path;
-  const imgFiles = await getImageList(path);
-  const imgNames = imgFiles.map((f) => f.name);
+  currentOffset = 0;
+  allImagesLoaded = false;
+  document.getElementById("images").innerHTML = "";
+
+  const imgFiles = await getImageList(path, 0, IMG_PAGE_SIZE + 1);
+  const hasMore = imgFiles.length > IMG_PAGE_SIZE;
+  const filesToLoad = hasMore ? imgFiles.slice(0, IMG_PAGE_SIZE) : imgFiles;
+  allImagesLoaded = !hasMore;
+  currentOffset = filesToLoad.length;
+
+  const imgNames = filesToLoad.map((f) => f.name);
   const metaMap = {};
-  for (const f of imgFiles) {
+  for (const f of filesToLoad) {
     metaMap[f.name] = { created_at: f.created_at, size: f.size };
   }
-  // image div 태그를 구성해 이미지 순서를 보장
   await loadImages("images", imgNames, metaMap);
+  updateSentinel();
   if (scrollTarget) {
     const targetId = `${scrollTarget}_img`;
     const el = document.getElementById(targetId);
@@ -464,6 +479,55 @@ async function loadImg(path, scrollTarget) {
     }
   }
 }
+
+async function loadMoreImages() {
+  if (isLoadingMore || allImagesLoaded) return;
+  isLoadingMore = true;
+
+  const imgFiles = await getImageList(currentDir, currentOffset, IMG_PAGE_SIZE + 1);
+  const hasMore = imgFiles.length > IMG_PAGE_SIZE;
+  const filesToLoad = hasMore ? imgFiles.slice(0, IMG_PAGE_SIZE) : imgFiles;
+  allImagesLoaded = !hasMore;
+  currentOffset += filesToLoad.length;
+
+  if (filesToLoad.length > 0) {
+    const imgNames = filesToLoad.map((f) => f.name);
+    const metaMap = {};
+    for (const f of filesToLoad) {
+      metaMap[f.name] = { created_at: f.created_at, size: f.size };
+    }
+    await loadImages("images", imgNames, metaMap, true);
+  }
+  isLoadingMore = false;
+  updateSentinel();
+}
+
+// 스크롤 감지용 sentinel
+const sentinel = document.createElement("div");
+sentinel.id = "scroll-sentinel";
+document.getElementById("images").after(sentinel);
+
+const updateSentinel = () => {
+  if (allImagesLoaded) {
+    sentinel.style.display = "none";
+    sentinel.innerHTML = "";
+  } else {
+    sentinel.style.display = "";
+    sentinel.innerHTML =
+      '<div class="loading-indicator">' +
+      '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
+      " loading" +
+      "</div>";
+  }
+};
+
+const scrollObserver = new IntersectionObserver(
+  (entries) => {
+    if (entries[0].isIntersecting) loadMoreImages();
+  },
+  { rootMargin: "300px" },
+);
+scrollObserver.observe(sentinel);
 
 // URL hash 에서 이미지 경로 파싱 (예: #dir/image.jpg → { dir: "dir", image: "dir/image.jpg" })
 const parseHash = () => {
@@ -477,36 +541,42 @@ const parseHash = () => {
 
 const imgDirs = await getImageDirs("");
 for (const dir of imgDirs) {
-  const item = `<button class="nes-btn is-primary" id='load_${dir}'>${dir}</button>`;
+  const item = `<a class="nes-btn is-primary" id="load_${dir}" href="#${encodeURIComponent(dir)}">${dir}</a>`;
   document.getElementById("load_img_buttons").insertAdjacentHTML("beforeend", item);
-  document.getElementById(`load_${dir}`).addEventListener("click", () => {
-    if (document.getElementById("images") != null) {
-      document.getElementById("images").innerHTML = "";
-    }
-    loadImg(dir);
-  });
 }
 
 getVisitCnt("ysoftman", "visitcnt");
 
-const hashInfo = parseHash();
-if (hashInfo && imgDirs.includes(hashInfo.dir)) {
-  loadImg(hashInfo.dir, hashInfo.image);
-} else if (imgDirs.length > 0) {
-  loadImg(imgDirs[0]);
-}
+let loadedDir = "";
 
-// hash 변경 시 해당 이미지로 이동
-window.addEventListener("hashchange", () => {
-  const info = parseHash();
-  if (!info || !imgDirs.includes(info.dir)) return;
-  const targetId = info.image ? `${info.image}_img` : null;
-  const el = targetId ? document.getElementById(targetId) : null;
-  if (el) {
-    el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
-  } else {
+const loadDirFromHash = (info, force = false) => {
+  if (!info || !imgDirs.includes(info.dir)) return false;
+  if (info.image) {
+    const targetId = `${info.image}_img`;
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return true;
+    }
+  }
+  if (info.dir !== loadedDir || force) {
+    loadedDir = info.dir;
     loadImg(info.dir, info.image);
   }
+  return true;
+};
+
+const hashInfo = parseHash();
+if (!loadDirFromHash(hashInfo, true)) {
+  if (imgDirs.length > 0) {
+    loadedDir = imgDirs[0];
+    loadImg(imgDirs[0]);
+  }
+}
+
+// hash 변경 시 카테고리 또는 이미지로 이동
+window.addEventListener("hashchange", () => {
+  loadDirFromHash(parseHash());
 });
 
 // 업로드 버튼 (로그인 사용자만 표시)
