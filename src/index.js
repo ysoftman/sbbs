@@ -687,7 +687,11 @@ const showUploadDirPicker = (dirs) => {
           `<button class="nes-btn ${dir === currentDir ? "is-success" : "is-primary"} upload-dir-btn" data-dir="${dir}">${dir}</button>`,
       )
       .join(" ") +
-    '<br><br><button class="nes-btn is-error upload-dir-cancel">cancel</button>' +
+    '<br><br><div class="new-dir-row">' +
+    '<input class="nes-input is-dark new-dir-input" type="text" placeholder="new category" maxlength="50">' +
+    '<button class="nes-btn is-warning new-dir-btn">create</button>' +
+    "</div>" +
+    '<br><button class="nes-btn is-error upload-dir-cancel">cancel</button>' +
     "</div>";
   document.body.appendChild(picker);
 
@@ -695,6 +699,7 @@ const showUploadDirPicker = (dirs) => {
   picker.addEventListener("click", (e) => {
     if (e.target === picker) picker.remove();
   });
+  // 기존 카테고리 선택
   for (const btn of picker.querySelectorAll(".upload-dir-btn")) {
     btn.addEventListener("click", () => {
       uploadDir = btn.dataset.dir;
@@ -702,6 +707,27 @@ const showUploadDirPicker = (dirs) => {
       document.getElementById("file_input").click();
     });
   }
+  // 새 카테고리 생성 후 업로드
+  const newDirInput = picker.querySelector(".new-dir-input");
+  picker.querySelector(".new-dir-btn").addEventListener("click", () => {
+    const newDir = newDirInput.value.trim();
+    if (!newDir) return;
+    if (!/^[a-zA-Z0-9_-]+$/.test(newDir)) {
+      alert("Category name must contain only alphanumeric characters, hyphens, and underscores");
+      return;
+    }
+    uploadDir = newDir;
+    if (!imgDirs.includes(newDir)) {
+      imgDirs.push(newDir);
+      const item = `<a class="nes-btn is-primary" id="load_${newDir}" href="#${encodeURIComponent(newDir)}">${newDir}</a>`;
+      document.getElementById("load_img_buttons").insertAdjacentHTML("beforeend", item);
+    }
+    picker.remove();
+    document.getElementById("file_input").click();
+  });
+  newDirInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") picker.querySelector(".new-dir-btn").click();
+  });
 };
 
 document.getElementById("btn_upload").addEventListener("click", () => {
