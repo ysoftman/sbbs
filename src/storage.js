@@ -1,0 +1,177 @@
+import { supabase } from "./common.js";
+import { formatFileSize } from "./utils.js";
+
+export const STORAGE_BUCKET = "images";
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_VIDEO_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml", "video/mp4"];
+
+// get image width height
+export const getImgMetaSync = (url) => {
+  return new Promise((resolver, reject) => {
+    const img = new Image();
+    img.onload = () => resolver(img);
+    img.onerror = (err) => reject(err);
+    img.src = url;
+  });
+};
+
+export const getMeta = (url, cb) => {
+  const img = new Image();
+  img.onload = () => cb(null, img);
+  img.onerror = (err) => cb(err);
+  img.src = url;
+};
+
+// supabase storage 디렉토리 목록 조회
+export const getImageDirs = async (path) => {
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(path, {
+    limit: 1000,
+    sortBy: { column: "name", order: "asc" },
+  });
+  if (error) {
+    console.log("getImageDirs error:", error);
+    return [];
+  }
+  // 폴더는 id가 null인 항목
+  const dirs = data
+    .filter((item) => item.id === null)
+    .map((item) => {
+      if (path === "" || path === "/") return item.name;
+      return `${path}/${item.name}`;
+    });
+  return dirs;
+};
+
+// supabase storage 에 저장된 이미지 list (최신순, 페이지네이션)
+export const getImageList = async (path, offset = 0, limit = 1000) => {
+  const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(path, {
+    limit: limit,
+    offset: offset,
+    sortBy: { column: "created_at", order: "desc" },
+  });
+  if (error) {
+    console.log("getImageList error:", error);
+    return [];
+  }
+  // 파일은 id가 null이 아닌 항목
+  const files = data
+    .filter((item) => item.id !== null)
+    .map((item) => ({
+      name: path === "" || path === "/" ? item.name : `${path}/${item.name}`,
+      created_at: item.created_at,
+      size: item.metadata?.size || 0,
+    }));
+  return files;
+};
+
+// supabase database(index 테이블) 문서 생성
+export const setVisitDoc = async (docName) => {
+  const { error } = await supabase.from("index").upsert({
+    name: docName,
+    visit_cnt: 1,
+  });
+  if (error) {
+    console.log("setVisitDoc error:", error);
+  }
+};
+
+// supabase database 방문카운트 조회 및 증가
+// RPC(stored procedure) 를 사용해 원자적 증가 처리
+export const getVisitCnt = async (docName, htmlId) => {
+  // rpc 함수 increment_visit_cnt 호출 (supabase SQL editor 에서 생성 필요)
+  const { data, error } = await supabase.rpc("increment_visit_cnt", {
+    doc_name: docName,
+  });
+  if (error) {
+    console.log("getVisitCnt error:", error);
+    // rpc 실패시 직접 조회 시도
+    const { data: row } = await supabase.from("index").select("visit_cnt").eq("name", docName).single();
+    if (row) {
+      document.getElementById(htmlId).innerHTML = `${row.visit_cnt}`;
+    }
+    return;
+  }
+  document.getElementById(htmlId).innerHTML = `${data}`;
+};
+
+// 파일 삭제 (storage + metadata, 본인 업로드만)
+export const deleteFile = async (filePath) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    alert("Login required");
+    return false;
+  }
+  // admin 또는 본인 업로드 파일인지 확인
+  const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", user.id).single();
+  if (!adminRow) {
+    const { data: uploadRow } = await supabase
+      .from("image_uploads")
+      .select("user_id")
+      .eq("file_path", filePath)
+      .single();
+    if (!uploadRow || uploadRow.user_id !== user.id) {
+      alert("You can only delete files you uploaded");
+      return false;
+    }
+  }
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
+  if (error) {
+    alert(`Delete error: ${error.message}`);
+    return false;
+  }
+  await supabase.from("image_uploads").delete().eq("file_path", filePath);
+  await supabase.from("image_messages").delete().eq("image_name", filePath);
+  return true;
+};
+
+// 파일 업로드
+export const uploadFile = async (file) => {
+  const maxSize = file.type === "video/mp4" ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+  if (file.size > maxSize) {
+    alert(`File size exceeds ${formatFileSize(maxSize)} limit (${formatFileSize(file.size)})`);
+    return false;
+  }
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    alert(`Unsupported file type: ${file.type}\nAllowed: jpg, png, gif, webp, bmp, svg, mp4`);
+    return false;
+  }
+  if (!/^[\x20-\x7E]+$/.test(file.name)) {
+    alert("File name must contain only ASCII characters");
+    return false;
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    alert("Login required");
+    return false;
+  }
+  const filePath = uploadDir ? `${uploadDir}/${file.name}` : file.name;
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: false });
+  if (error) {
+    alert(`Upload error: ${error.message}`);
+    return false;
+  }
+  const userName = user.is_anonymous
+    ? "Anonymous"
+    : user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown";
+  const { error: metaError } = await supabase.from("image_uploads").insert({
+    file_path: filePath,
+    user_name: userName,
+    user_id: user.id,
+  });
+  if (metaError) {
+    console.log("image_uploads insert error:", metaError);
+  }
+  return true;
+};
+
+// 업로드 대상 디렉토리
+export let uploadDir = "";
+export const setUploadDir = (dir) => {
+  uploadDir = dir;
+};
