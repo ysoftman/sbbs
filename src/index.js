@@ -11,6 +11,23 @@ const toSafeId = (name) => name.replaceAll(/[^a-zA-Z0-9]/g, "_");
 // 이미지별 textarea max-height 재계산 함수 저장
 const maxHeightUpdaters = {};
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml", "video/mp4"];
+let currentDir = "";
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+};
+
 // 이미지 오버레이 표시 (파일 경로 + 이미지 사이즈)
 const showImageOverlay = (url, name) => {
   const overlay = document.createElement("div");
@@ -33,8 +50,20 @@ const showImageOverlay = (url, name) => {
   });
 };
 
-export const loadImages = async (htmlId, imageNames) => {
+export const loadImages = async (htmlId, imageNames, metaMap = {}) => {
   document.getElementById(htmlId).innerHTML = "";
+  const uploaderMap = {};
+  if (imageNames.length > 0) {
+    const { data: uploadData } = await supabase
+      .from("image_uploads")
+      .select("file_path, user_name")
+      .in("file_path", imageNames);
+    if (uploadData) {
+      for (const row of uploadData) {
+        uploaderMap[row.file_path] = row.user_name;
+      }
+    }
+  }
   let isImage = true;
   let item = "";
   for (const name of imageNames) {
@@ -53,15 +82,23 @@ export const loadImages = async (htmlId, imageNames) => {
       `<span class="nes-text is-success" id="msg_status_${msgId}"></span>` +
       `</div>` +
       `<div class="msg-list" id="msg_list_${msgId}"></div>`;
+    const meta = metaMap[name] || {};
+    const uploader = uploaderMap[name] || "";
+    const metaHtml =
+      `<span class="img-meta">` +
+      (meta.size ? `<span class="img-file-size">${formatFileSize(meta.size)}</span> ` : "") +
+      (meta.created_at ? `<span class="img-upload-time">${formatDate(meta.created_at)}</span> ` : "") +
+      (uploader ? `<span class="img-uploader">${uploader}</span>` : "") +
+      `</span>`;
     if (isImage) {
       item =
         `<div class="nes-container with-title">` +
-        `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${name}</a> <span id="${name}_img_size"></span></p>` +
+        `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${name}</a> <span id="${name}_img_size"></span> ${metaHtml}</p>` +
         `<div class="img-content-row"><div id="${name}_img"></div><div class="img-side-msg">${msgHtml}</div></div></div>`;
     } else {
       item =
         `<div class="nes-container with-title">` +
-        `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${name}</a></p>` +
+        `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${name}</a> ${metaHtml}</p>` +
         `<div class="img-content-row"><div id="${name}_video"></div><div class="img-side-msg">${msgHtml}</div></div></div>`;
     }
     document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
@@ -322,10 +359,11 @@ export const getImageList = async (path) => {
   // 파일은 id가 null이 아닌 항목
   const files = data
     .filter((item) => item.id !== null)
-    .map((item) => {
-      if (path === "" || path === "/") return item.name;
-      return `${path}/${item.name}`;
-    });
+    .map((item) => ({
+      name: path === "" || path === "/" ? item.name : `${path}/${item.name}`,
+      created_at: item.created_at,
+      size: item.metadata?.size || 0,
+    }));
   return files;
 };
 
@@ -359,6 +397,47 @@ export const getVisitCnt = async (docName, htmlId) => {
   document.getElementById(htmlId).innerHTML = `${data}`;
 };
 
+// 파일 업로드
+const uploadFile = async (file) => {
+  if (file.size > MAX_FILE_SIZE) {
+    alert(`File size exceeds 5MB limit (${formatFileSize(file.size)})`);
+    return false;
+  }
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    alert(`Unsupported file type: ${file.type}\nAllowed: jpg, png, gif, webp, bmp, svg, mp4`);
+    return false;
+  }
+  if (!/^[\x20-\x7E]+$/.test(file.name)) {
+    alert("File name must contain only ASCII characters");
+    return false;
+  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    alert("Login required");
+    return false;
+  }
+  const filePath = currentDir ? `${currentDir}/${file.name}` : file.name;
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: false });
+  if (error) {
+    alert(`Upload error: ${error.message}`);
+    return false;
+  }
+  const userName = user.is_anonymous
+    ? "Anonymous"
+    : user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown";
+  const { error: metaError } = await supabase.from("image_uploads").insert({
+    file_path: filePath,
+    user_name: userName,
+    user_id: user.id,
+  });
+  if (metaError) {
+    console.log("image_uploads insert error:", metaError);
+  }
+  return true;
+};
+
 const version = `last_version: ${__LAST_VERSION_TAG__}<br>last_commit_hash: ${__LAST_COMMIT_HASH__}<br>last_commit_date: ${__LAST_COMMIT_DATE__}<br>last_commit_message: ${__LAST_COMMIT_MESSAGE__}<br>`;
 document.getElementById("version").innerHTML = version;
 
@@ -368,9 +447,15 @@ document.getElementById("btn_version").addEventListener("click", () => {
 });
 
 async function loadImg(path, scrollTarget) {
-  const imgNames = await getImageList(path);
+  currentDir = path;
+  const imgFiles = await getImageList(path);
+  const imgNames = imgFiles.map((f) => f.name);
+  const metaMap = {};
+  for (const f of imgFiles) {
+    metaMap[f.name] = { created_at: f.created_at, size: f.size };
+  }
   // image div 태그를 구성해 이미지 순서를 보장
-  await loadImages("images", imgNames);
+  await loadImages("images", imgNames, metaMap);
   if (scrollTarget) {
     const targetId = `${scrollTarget}_img`;
     const el = document.getElementById(targetId);
@@ -422,4 +507,34 @@ window.addEventListener("hashchange", () => {
   } else {
     loadImg(info.dir, info.image);
   }
+});
+
+// 업로드 버튼 (로그인 사용자만 표시)
+const {
+  data: { user: currentUploadUser },
+} = await supabase.auth.getUser();
+if (currentUploadUser) {
+  document.getElementById("upload_area").style.display = "";
+}
+
+document.getElementById("btn_upload").addEventListener("click", () => {
+  if (!currentDir) {
+    alert("Select a directory first");
+    return;
+  }
+  document.getElementById("file_input").click();
+});
+
+document.getElementById("file_input").addEventListener("change", async (e) => {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+  let uploaded = 0;
+  for (const file of files) {
+    const success = await uploadFile(file);
+    if (success) uploaded++;
+  }
+  if (uploaded > 0) {
+    await loadImg(currentDir);
+  }
+  e.target.value = "";
 });

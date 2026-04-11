@@ -247,6 +247,23 @@ img.thumbnail:hover {
   color: #64b5f6 !important;
 }
 
+.img-meta {
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.nes-container.with-title > .title .img-file-size {
+  color: #92cc41;
+}
+
+.nes-container.with-title > .title .img-upload-time {
+  color: #888;
+}
+
+.nes-container.with-title > .title .img-uploader {
+  color: #209cee;
+}
+
 .nes-balloon.is-dark .nes-text.is-primary {
   color: #64b5f6;
 }
