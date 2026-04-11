@@ -7,16 +7,6 @@ const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_VIDEO_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml", "video/mp4"];
 
-// get image width height
-export const getImgMetaSync = (url) => {
-  return new Promise((resolver, reject) => {
-    const img = new Image();
-    img.onload = () => resolver(img);
-    img.onerror = (err) => reject(err);
-    img.src = url;
-  });
-};
-
 export const getMeta = (url, cb) => {
   const img = new Image();
   img.onload = () => cb(null, img);

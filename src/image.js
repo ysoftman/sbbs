@@ -84,6 +84,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
       }
     }
   }
+  const publicUrlMap = {};
   let isImage = true;
   let item = "";
   for (const name of imageNames) {
@@ -118,6 +119,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
     const {
       data: { publicUrl },
     } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+    publicUrlMap[name] = publicUrl;
     let mediaHtml;
     if (isImage) {
       mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`;
@@ -175,10 +177,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
         if (thumbEl.complete) applyMaxHeight();
         thumbEl.addEventListener("load", applyMaxHeight);
       }
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
-      getMeta(publicUrl, (_err, img) => {
+      getMeta(publicUrlMap[name], (_err, img) => {
         const imgSize = `(${img.naturalWidth}x${img.naturalHeight})`;
         if (document.getElementById(`${name}_img_size`) == null) {
           return;
