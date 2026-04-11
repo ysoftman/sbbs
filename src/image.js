@@ -1,6 +1,13 @@
 import { supabase } from "./common.js";
 import { loadMessages, saveMessage } from "./message.js";
 import { deleteFile, getImageDirs, getMeta, moveFile, STORAGE_BUCKET } from "./storage.js";
+
+// admin 상태 캐싱 (세션 내 변경 없음)
+let cachedAdminStatus = null;
+supabase.auth.onAuthStateChange(() => {
+  cachedAdminStatus = null;
+});
+
 import {
   escapeHtml,
   formatDate,
@@ -136,14 +143,17 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
     }
     document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
   }
-  // 로그인 상태 확인
+  // 로그인 상태 확인 (admin 여부는 캐싱)
   const {
     data: { user: currentUser },
   } = await supabase.auth.getUser();
   let isAdmin = false;
   if (currentUser) {
-    const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", currentUser.id).single();
-    isAdmin = !!adminRow;
+    if (cachedAdminStatus === null) {
+      const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", currentUser.id).single();
+      cachedAdminStatus = !!adminRow;
+    }
+    isAdmin = cachedAdminStatus;
   }
 
   for (const name of imageNames) {
