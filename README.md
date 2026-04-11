@@ -96,7 +96,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TABLE IF NOT EXISTS image_messages (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   image_name TEXT NOT NULL,
-  message TEXT NOT NULL,
+  message TEXT NOT NULL CHECK (octet_length(message) <= 10000),
   user_name TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -109,7 +109,32 @@ CREATE POLICY "Allow read" ON image_messages FOR SELECT USING (true);
 
 -- 인증된 사용자만 쓰기 허용
 CREATE POLICY "Allow write for authenticated" ON image_messages
-  FOR ALL USING (auth.uid() IS NOT NULL);
+  FOR INSERT USING (auth.uid() IS NOT NULL);
+
+-- 본인 메시지만 삭제 허용
+CREATE POLICY "Allow delete own messages" ON image_messages
+  FOR DELETE USING (auth.uid() = user_id);
+```
+
+#### user_id 컬럼 추가 마이그레이션
+
+기존 테이블에 user_id 컬럼을 추가하려면 Supabase SQL Editor 에서 실행한다.
+
+```sql
+-- user_id 컬럼 추가
+ALTER TABLE image_messages ADD COLUMN user_id UUID REFERENCES auth.users(id);
+
+-- message 컬럼 10000바이트 제한
+ALTER TABLE image_messages ADD CONSTRAINT message_max_bytes CHECK (octet_length(message) <= 10000);
+
+-- 기존 "Allow write for authenticated" 정책을 INSERT 전용으로 변경
+DROP POLICY IF EXISTS "Allow write for authenticated" ON image_messages;
+CREATE POLICY "Allow write for authenticated" ON image_messages
+  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+-- 본인 메시지만 삭제 허용 정책 추가
+CREATE POLICY "Allow delete own messages" ON image_messages
+  FOR DELETE USING (auth.uid() = user_id);
 ```
 
 ### Storage 파일명 제한 (non-ASCII 문자 불가)

@@ -50,9 +50,37 @@ img.thumbnail:hover {
   cursor: pointer;
 }
 
-.img-overlay img {
+.img-overlay-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   max-width: 95%;
   max-height: 95%;
+}
+
+.img-overlay-info {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: "Press Start 2P", monospace;
+}
+
+.img-overlay-path {
+  color: #f8c630;
+}
+
+.img-overlay-size {
+  color: #64b5f6;
+}
+
+.img-overlay img {
+  max-width: 100%;
+  max-height: calc(95vh - 50px);
 }
 
 .nes-btn.is-purple {
@@ -119,12 +147,13 @@ img.thumbnail:hover {
 .img-content-row {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .img-side-msg {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .img-message {
@@ -134,8 +163,21 @@ img.thumbnail:hover {
   gap: 8px;
 }
 
-.img-message .nes-textarea {
+.msg-textarea-wrap {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.msg-textarea-wrap .nes-textarea {
+  resize: vertical;
+  min-height: 2em;
+}
+
+.msg-charcount {
+  font-size: 10px;
+  color: #888;
+  text-align: right;
 }
 
 .img-message .nes-btn {
@@ -160,6 +202,24 @@ img.thumbnail:hover {
   word-break: break-word;
 }
 
+.msg-delete-btn {
+  padding: 0 4px;
+  min-height: auto;
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.msg-more {
+  padding: 4px 0;
+  text-align: center;
+}
+
+.msg-more-btn {
+  padding: 2px 8px;
+  min-height: auto;
+  font-size: 10px;
+}
+
 .index-navbar {
   border-bottom: 4px solid #444;
 }
@@ -172,6 +232,10 @@ img.thumbnail:hover {
 .nes-container.with-title > .title {
   background-color: #212529 !important;
   color: #f8c630 !important;
+}
+
+.nes-container.with-title > .title span[id$="_img_size"] {
+  color: #64b5f6 !important;
 }
 
 .nes-balloon.is-dark .nes-text.is-primary {
