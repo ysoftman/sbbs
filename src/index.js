@@ -4,7 +4,7 @@ import "nes.css/css/nes.min.css";
 
 import { supabase } from "./common.js";
 import { loadImages } from "./image.js";
-import { getImageDirs, getImageList, getVisitCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
+import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
 import { showAlert } from "./utils.js";
 
 const IMG_PAGE_SIZE = 10;
@@ -119,7 +119,7 @@ for (const dir of imgDirs) {
   document.getElementById("load_img_buttons").insertAdjacentHTML("beforeend", item);
 }
 
-getVisitCnt("ysoftman", "visitcnt");
+getViewCnt("ysoftman", "viewcnt");
 
 let loadedDir = "";
 

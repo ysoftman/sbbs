@@ -7,7 +7,7 @@ Supabase SQL Editor 에서 실행한다.
 ```sql
 CREATE TABLE IF NOT EXISTS index (
   name TEXT PRIMARY KEY,
-  visit_cnt INTEGER DEFAULT 1
+  view_cnt INTEGER DEFAULT 1
 );
 
 ALTER TABLE index ENABLE ROW LEVEL SECURITY;
@@ -17,16 +17,16 @@ CREATE POLICY "Allow read" ON index FOR SELECT USING (true);
 CREATE POLICY "Allow write for authenticated" ON index
   FOR ALL USING (auth.uid() IS NOT NULL);
 
--- 방문 카운트 원자적 증가를 위한 RPC 함수
-CREATE OR REPLACE FUNCTION increment_visit_cnt(doc_name TEXT)
+-- 조회수 원자적 증가를 위한 RPC 함수
+CREATE OR REPLACE FUNCTION increment_view_cnt(doc_name TEXT)
 RETURNS INTEGER AS $$
 DECLARE
   new_cnt INTEGER;
 BEGIN
-  INSERT INTO index (name, visit_cnt)
+  INSERT INTO index (name, view_cnt)
   VALUES (doc_name, 1)
-  ON CONFLICT (name) DO UPDATE SET visit_cnt = index.visit_cnt + 1
-  RETURNING visit_cnt INTO new_cnt;
+  ON CONFLICT (name) DO UPDATE SET view_cnt = index.view_cnt + 1
+  RETURNING view_cnt INTO new_cnt;
   RETURN new_cnt;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

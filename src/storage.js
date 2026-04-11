@@ -57,29 +57,29 @@ export const getImageList = async (path, offset = 0, limit = 1000) => {
 };
 
 // supabase database(index 테이블) 문서 생성
-export const setVisitDoc = async (docName) => {
+export const setViewDoc = async (docName) => {
   const { error } = await supabase.from("index").upsert({
     name: docName,
-    visit_cnt: 1,
+    view_cnt: 1,
   });
   if (error) {
-    console.warn("setVisitDoc error:", error);
+    console.warn("setViewDoc error:", error);
   }
 };
 
-// supabase database 방문카운트 조회 및 증가
+// supabase database 조회수 조회 및 증가
 // RPC(stored procedure) 를 사용해 원자적 증가 처리
-export const getVisitCnt = async (docName, htmlId) => {
-  // rpc 함수 increment_visit_cnt 호출 (supabase SQL editor 에서 생성 필요)
-  const { data, error } = await supabase.rpc("increment_visit_cnt", {
+export const getViewCnt = async (docName, htmlId) => {
+  // rpc 함수 increment_view_cnt 호출 (supabase SQL editor 에서 생성 필요)
+  const { data, error } = await supabase.rpc("increment_view_cnt", {
     doc_name: docName,
   });
   if (error) {
-    console.warn("getVisitCnt error:", error);
+    console.warn("getViewCnt error:", error);
     // rpc 실패시 직접 조회 시도
-    const { data: row } = await supabase.from("index").select("visit_cnt").eq("name", docName).single();
+    const { data: row } = await supabase.from("index").select("view_cnt").eq("name", docName).single();
     if (row) {
-      document.getElementById(htmlId).innerHTML = `${row.visit_cnt}`;
+      document.getElementById(htmlId).innerHTML = `${row.view_cnt}`;
     }
     return;
   }
