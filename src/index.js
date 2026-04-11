@@ -70,10 +70,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
   let isImage = true;
   let item = "";
   for (const name of imageNames) {
-    isImage = true;
-    if (name.endsWith("mp4")) {
-      isImage = false;
-    }
+    isImage = !name.endsWith("mp4");
     const msgId = toSafeId(name);
     const msgHtml =
       `<div class="img-message" id="msg_form_${msgId}" style="display:none">` +
@@ -97,16 +94,23 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
       (uploadInfo.user_name ? `${uploaderAvatar}<span class="img-uploader">${uploadInfo.user_name}</span> ` : "") +
       `</span>`;
     const deleteHtml = `<span class="img-file-delete" id="file_del_${msgId}" style="display:none"></span>`;
+    // public URL을 즉시 생성하여 img/video 태그를 바로 포함
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+    let mediaHtml;
     if (isImage) {
+      mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" data-name="${name}" data-url="${publicUrl}">`;
       item =
         `<div class="nes-container with-title">` +
         `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${name}</a> <span id="${name}_img_size"></span> ${metaHtml} ${deleteHtml}</p>` +
-        `<div class="img-content-row"><div id="${name}_img"></div><div class="img-side-msg">${msgHtml}</div></div></div>`;
+        `<div class="img-content-row"><div id="${name}_img">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`;
     } else {
+      mediaHtml = `<video width="640" controls autoplay muted><source type="video/mp4" src=${publicUrl}></video>`;
       item =
         `<div class="nes-container with-title">` +
         `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${name}</a> ${metaHtml} ${deleteHtml}</p>` +
-        `<div class="img-content-row"><div id="${name}_video"></div><div class="img-side-msg">${msgHtml}</div></div></div>`;
+        `<div class="img-content-row"><div id="${name}_video">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`;
     }
     document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
   }
@@ -121,27 +125,11 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
   }
 
   for (const name of imageNames) {
-    // supabase storage 에 저장된 이미지 public url 불러오기
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
-    const url = publicUrl;
-    isImage = true;
-    if (name.endsWith("mp4")) {
-      isImage = false;
-    }
-    let id = name;
-    if (isImage) {
-      item = `<img class="thumbnail" loading="lazy" src="${url}" data-name="${name}" data-url="${url}">`;
-      id += "_img";
-    } else {
-      item = `<video width="640" controls autoplay muted><source type="video/mp4" src=${url}></video>`;
-      id += "_video";
-    }
+    isImage = !name.endsWith("mp4");
+    const id = isImage ? `${name}_img` : `${name}_video`;
     if (document.getElementById(id) == null) {
       continue;
     }
-    document.getElementById(id).innerHTML = item;
     if (isImage) {
       const thumbEl = document.getElementById(id).querySelector(".thumbnail");
       if (thumbEl) {
@@ -167,7 +155,10 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
         if (thumbEl.complete) applyMaxHeight();
         thumbEl.addEventListener("load", applyMaxHeight);
       }
-      getMeta(url, (_err, img) => {
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+      getMeta(publicUrl, (_err, img) => {
         const imgSize = `(${img.naturalWidth}x${img.naturalHeight})`;
         if (document.getElementById(`${name}_img_size`) == null) {
           return;
