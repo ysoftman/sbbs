@@ -28,3 +28,50 @@ export const makeDicebear = (seed) => {
 
 // 이미지별 textarea max-height 재계산 함수 저장 (image.js, message.js 에서 공유)
 export const maxHeightUpdaters = {};
+
+// 테마 커스텀 alert
+export const showAlert = (message) => {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "dialog-overlay";
+    overlay.innerHTML =
+      '<div class="dialog-inner nes-container is-dark">' +
+      `<p class="dialog-message">${message}</p>` +
+      '<div class="dialog-buttons">' +
+      '<button class="nes-btn is-primary dialog-ok">OK</button>' +
+      "</div></div>";
+    document.body.appendChild(overlay);
+    const ok = overlay.querySelector(".dialog-ok");
+    ok.focus();
+    ok.addEventListener("click", () => {
+      overlay.remove();
+      resolve();
+    });
+  });
+};
+
+// 테마 커스텀 confirm
+export const showConfirm = (message) => {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "dialog-overlay";
+    overlay.innerHTML =
+      '<div class="dialog-inner nes-container is-dark">' +
+      `<p class="dialog-message">${message}</p>` +
+      '<div class="dialog-buttons">' +
+      '<button class="nes-btn is-primary dialog-yes">OK</button> ' +
+      '<button class="nes-btn is-error dialog-no">Cancel</button>' +
+      "</div></div>";
+    document.body.appendChild(overlay);
+    const yes = overlay.querySelector(".dialog-yes");
+    yes.focus();
+    yes.addEventListener("click", () => {
+      overlay.remove();
+      resolve(true);
+    });
+    overlay.querySelector(".dialog-no").addEventListener("click", () => {
+      overlay.remove();
+      resolve(false);
+    });
+  });
+};

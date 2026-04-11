@@ -1,5 +1,5 @@
 import { supabase } from "./common.js";
-import { makeDicebear, maxHeightUpdaters } from "./utils.js";
+import { makeDicebear, maxHeightUpdaters, showAlert, showConfirm } from "./utils.js";
 
 const INITIAL_LIMIT = 10;
 const MORE_LIMIT = 5;
@@ -14,7 +14,7 @@ export const saveMessage = async (imageName, message, userName, userId) => {
   });
   if (error) {
     console.log("saveMessage error:", error);
-    alert(`saveMessage error: ${error.message}`);
+    await showAlert(`saveMessage error: ${error.message}`);
   }
 };
 
@@ -23,7 +23,7 @@ const deleteMessage = async (id) => {
   const { error } = await supabase.from("image_messages").delete().eq("id", id);
   if (error) {
     console.log("deleteMessage error:", error);
-    alert(`deleteMessage error: ${error.message}`);
+    await showAlert(`deleteMessage error: ${error.message}`);
   }
 };
 
@@ -84,7 +84,7 @@ export const loadMessages = async (imageName, listId, currentUserId, offset = 0)
   for (const btn of el.querySelectorAll(".msg-delete-btn:not([data-bound])")) {
     btn.dataset.bound = "1";
     btn.addEventListener("click", async (e) => {
-      if (!confirm("delete?")) return;
+      if (!(await showConfirm("delete?"))) return;
       await deleteMessage(e.target.dataset.msgId);
       await loadMessages(e.target.dataset.imageName, e.target.dataset.listId, currentUserId);
     });

@@ -1,5 +1,5 @@
 import { supabase } from "./common.js";
-import { formatFileSize } from "./utils.js";
+import { formatFileSize, showAlert } from "./utils.js";
 
 export const STORAGE_BUCKET = "images";
 
@@ -103,11 +103,20 @@ export const moveFile = async (oldPath, newDir) => {
   if (oldPath === newPath) return null;
   const { error } = await supabase.storage.from(STORAGE_BUCKET).move(oldPath, newPath);
   if (error) {
-    alert(`Move error: ${error.message}`);
+    await showAlert(`Move error: ${error.message}`);
     return null;
   }
-  await supabase.from("image_info").update({ file_path: newPath }).eq("file_path", oldPath);
-  await supabase.from("image_messages").update({ image_name: newPath }).eq("image_name", oldPath);
+  const { error: infoErr } = await supabase.from("image_info").update({ file_path: newPath }).eq("file_path", oldPath);
+  if (infoErr) {
+    await showAlert(`image_info update error: ${infoErr.message}`);
+  }
+  const { error: msgErr } = await supabase
+    .from("image_messages")
+    .update({ image_name: newPath })
+    .eq("image_name", oldPath);
+  if (msgErr) {
+    await showAlert(`image_messages update error: ${msgErr.message}`);
+  }
   return newPath;
 };
 
@@ -117,7 +126,7 @@ export const deleteFile = async (filePath) => {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    alert("Login required");
+    await showAlert("Login required");
     return false;
   }
   // admin 또는 본인 업로드 파일인지 확인
@@ -125,13 +134,13 @@ export const deleteFile = async (filePath) => {
   if (!adminRow) {
     const { data: uploadRow } = await supabase.from("image_info").select("user_id").eq("file_path", filePath).single();
     if (!uploadRow || uploadRow.user_id !== user.id) {
-      alert("You can only delete files you uploaded");
+      await showAlert("You can only delete files you uploaded");
       return false;
     }
   }
   const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
   if (error) {
-    alert(`Delete error: ${error.message}`);
+    await showAlert(`Delete error: ${error.message}`);
     return false;
   }
   await supabase.from("image_info").delete().eq("file_path", filePath);
@@ -143,28 +152,28 @@ export const deleteFile = async (filePath) => {
 export const uploadFile = async (file) => {
   const maxSize = file.type === "video/mp4" ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
   if (file.size > maxSize) {
-    alert(`File size exceeds ${formatFileSize(maxSize)} limit (${formatFileSize(file.size)})`);
+    await showAlert(`File size exceeds ${formatFileSize(maxSize)} limit (${formatFileSize(file.size)})`);
     return false;
   }
   if (!ALLOWED_TYPES.includes(file.type)) {
-    alert(`Unsupported file type: ${file.type}\nAllowed: jpg, png, gif, webp, bmp, svg, mp4`);
+    await showAlert(`Unsupported file type: ${file.type}\nAllowed: jpg, png, gif, webp, bmp, svg, mp4`);
     return false;
   }
   if (!/^[\x20-\x7E]+$/.test(file.name)) {
-    alert("File name must contain only ASCII characters");
+    await showAlert("File name must contain only ASCII characters");
     return false;
   }
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    alert("Login required");
+    await showAlert("Login required");
     return false;
   }
   const filePath = uploadDir ? `${uploadDir}/${file.name}` : file.name;
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: false });
   if (error) {
-    alert(`Upload error: ${error.message}`);
+    await showAlert(`Upload error: ${error.message}`);
     return false;
   }
   const userName = user.is_anonymous

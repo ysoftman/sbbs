@@ -5,6 +5,7 @@ import { createAvatar } from "@dicebear/core";
 import { createClient } from "@supabase/supabase-js";
 
 import { supabasePublishableKey, supabaseUrl } from "./supabase_config.js";
+import { showAlert } from "./utils.js";
 
 export const supabase = createClient(supabaseUrl(), supabasePublishableKey());
 
@@ -82,7 +83,7 @@ const loginGoogle = async () => {
     },
   });
   if (error) {
-    alert(`errCode:${error.code}\nerrMessage:${error.message}`);
+    await showAlert(`errCode:${error.code}\nerrMessage:${error.message}`);
   }
 };
 

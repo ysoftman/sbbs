@@ -8,6 +8,7 @@ import {
   MAX_MSG_BYTES,
   makeDicebear,
   maxHeightUpdaters,
+  showConfirm,
   toSafeId,
 } from "./utils.js";
 
@@ -209,7 +210,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
         delEl.style.display = "";
         delEl.innerHTML = `<button class="nes-btn is-error img-file-delete-btn">x</button>`;
         delEl.querySelector(".img-file-delete-btn").addEventListener("click", async () => {
-          if (!confirm(`delete "${name}"?`)) return;
+          if (!(await showConfirm(`delete "${name}"?`))) return;
           const deleted = await deleteFile(name);
           if (deleted) {
             const container = delEl.closest(".nes-container");

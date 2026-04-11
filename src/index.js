@@ -5,6 +5,7 @@ import "nes.css/css/nes.min.css";
 import { supabase } from "./common.js";
 import { loadImages } from "./image.js";
 import { getImageDirs, getImageList, getVisitCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
+import { showAlert } from "./utils.js";
 
 const IMG_PAGE_SIZE = 10;
 let currentDir = "";
@@ -204,11 +205,11 @@ const showUploadDirPicker = (dirs) => {
   }
   // 새 카테고리 생성 후 업로드
   const newDirInput = picker.querySelector(".new-dir-input");
-  picker.querySelector(".new-dir-btn").addEventListener("click", () => {
+  picker.querySelector(".new-dir-btn").addEventListener("click", async () => {
     const newDir = newDirInput.value.trim();
     if (!newDir) return;
     if (!/^[a-zA-Z0-9_-]+$/.test(newDir)) {
-      alert("Category name must contain only alphanumeric characters, hyphens, and underscores");
+      await showAlert("Category name must contain only alphanumeric characters, hyphens, and underscores");
       return;
     }
     setUploadDir(newDir);
