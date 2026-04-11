@@ -50,7 +50,8 @@ zzz
 - Authentication > URL Configuration 설정:
   - **Site URL**: `https://ysoftman.github.io/supabase` (로그인 후 최종 redirect 대상)
   - **Redirect URLs**: `https://ysoftman.github.io/supabase` 추가
-  - 로컬 테스트 시 `http://localhost:5173` 도 Redirect URLs 에 추가
+  - 로컬 테스트 시 `http://localhost:5173/sbbs/` 도 Redirect URLs 에 추가
+- Google Cloud Console > OAuth 클라이언트 > **승인된 자바스크립트 원본**에 `http://localhost:5173` 추가
 
 ### Storage 설정
 

@@ -51,6 +51,11 @@ CREATE POLICY "Allow read" ON image_messages FOR SELECT USING (true);
 CREATE POLICY "Allow write for authenticated" ON image_messages
   FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 
+CREATE POLICY "Allow update for admin" ON image_messages
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid())
+  );
+
 CREATE POLICY "Allow delete own messages" ON image_messages
   FOR DELETE USING (auth.uid() = user_id);
 ```

@@ -106,16 +106,31 @@ export const moveFile = async (oldPath, newDir) => {
     await showAlert(`Move error: ${error.message}`);
     return null;
   }
-  const { error: infoErr } = await supabase.from("image_info").update({ file_path: newPath }).eq("file_path", oldPath);
-  if (infoErr) {
-    await showAlert(`image_info update error: ${infoErr.message}`);
+  const { data: infoData, error: infoErr } = await supabase
+    .from("image_info")
+    .update({ file_path: newPath })
+    .eq("file_path", oldPath)
+    .select();
+  if (infoErr || !infoData || infoData.length === 0) {
+    // DB 업데이트 실패 시 S3 롤백
+    await supabase.storage.from(STORAGE_BUCKET).move(newPath, oldPath);
+    await showAlert(
+      `image_info update failed, move rolled back.\n${infoErr?.message || `"${oldPath}" not found.`}\n` +
+        "Check RLS policy:\n" +
+        'CREATE POLICY "Allow update for admin" ON image_info FOR UPDATE USING (EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid()));',
+    );
+    return null;
   }
   const { error: msgErr } = await supabase
     .from("image_messages")
     .update({ image_name: newPath })
     .eq("image_name", oldPath);
   if (msgErr) {
-    await showAlert(`image_messages update error: ${msgErr.message}`);
+    // image_messages 업데이트 실패 시 전체 롤백
+    await supabase.storage.from(STORAGE_BUCKET).move(newPath, oldPath);
+    await supabase.from("image_info").update({ file_path: oldPath }).eq("file_path", newPath);
+    await showAlert(`image_messages update failed, move rolled back.\n${msgErr.message}`);
+    return null;
   }
   return newPath;
 };
