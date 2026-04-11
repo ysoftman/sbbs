@@ -29,7 +29,6 @@ const makeLogoutBoxHTML = (userName, userId) => {
 supabase.auth.onAuthStateChange((_event, session) => {
   if (session?.user) {
     const user = session.user;
-    console.log("user:", user);
     if (user.is_anonymous) {
       document.getElementById(loginAnonymousBoxID).innerHTML = makeLogoutBoxHTML("", user.id);
       return;
@@ -54,7 +53,7 @@ const loginAnonymous = async () => {
   }
   const { error } = await supabase.auth.signInAnonymously();
   if (error) {
-    console.log("error: ", error);
+    console.warn("signInAnonymously error:", error);
     return;
   }
   const {
@@ -87,7 +86,6 @@ const loginGoogle = async () => {
 // 로그아웃
 const logout = async () => {
   await supabase.auth.signOut();
-  console.log("logout...");
   window.location.reload();
 };
 

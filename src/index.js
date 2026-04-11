@@ -238,11 +238,17 @@ document.getElementById("btn_upload").addEventListener("click", () => {
 document.getElementById("file_input").addEventListener("change", async (e) => {
   const files = e.target.files;
   if (!files || files.length === 0) return;
+  const uploadBtn = document.getElementById("btn_upload");
+  const originalText = uploadBtn.textContent;
   let uploaded = 0;
-  for (const file of files) {
-    const success = await uploadFile(file);
+  for (let i = 0; i < files.length; i++) {
+    uploadBtn.textContent = `uploading ${i + 1}/${files.length}`;
+    uploadBtn.disabled = true;
+    const success = await uploadFile(files[i]);
     if (success) uploaded++;
   }
+  uploadBtn.textContent = originalText;
+  uploadBtn.disabled = false;
   if (uploaded > 0) {
     await loadImg(uploadDir || currentDir);
   }

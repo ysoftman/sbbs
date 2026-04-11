@@ -147,7 +147,7 @@ img.thumbnail:hover {
 }
 
 .new-dir-input {
-  width: 200px;
+  width: min(200px, 60vw);
   font-size: 12px;
 }
 

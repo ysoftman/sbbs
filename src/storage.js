@@ -21,7 +21,7 @@ export const getImageDirs = async (path) => {
     sortBy: { column: "name", order: "asc" },
   });
   if (error) {
-    console.log("getImageDirs error:", error);
+    console.warn("getImageDirs error:", error);
     return [];
   }
   // 폴더는 id가 null인 항목
@@ -42,7 +42,7 @@ export const getImageList = async (path, offset = 0, limit = 1000) => {
     sortBy: { column: "created_at", order: "desc" },
   });
   if (error) {
-    console.log("getImageList error:", error);
+    console.warn("getImageList error:", error);
     return [];
   }
   // 파일은 id가 null이 아닌 항목
@@ -63,7 +63,7 @@ export const setVisitDoc = async (docName) => {
     visit_cnt: 1,
   });
   if (error) {
-    console.log("setVisitDoc error:", error);
+    console.warn("setVisitDoc error:", error);
   }
 };
 
@@ -75,7 +75,7 @@ export const getVisitCnt = async (docName, htmlId) => {
     doc_name: docName,
   });
   if (error) {
-    console.log("getVisitCnt error:", error);
+    console.warn("getVisitCnt error:", error);
     // rpc 실패시 직접 조회 시도
     const { data: row } = await supabase.from("index").select("visit_cnt").eq("name", docName).single();
     if (row) {
@@ -190,7 +190,7 @@ export const uploadFile = async (file) => {
     user_id: user.id,
   });
   if (metaError) {
-    console.log("image_info insert error:", metaError);
+    console.warn("image_info insert error:", metaError);
   }
   return true;
 };

@@ -13,7 +13,7 @@ export const saveMessage = async (imageName, message, userName, userId) => {
     user_id: userId,
   });
   if (error) {
-    console.log("saveMessage error:", error);
+    console.warn("saveMessage error:", error);
     await showAlert(`saveMessage error: ${error.message}`);
   }
 };
@@ -22,7 +22,7 @@ export const saveMessage = async (imageName, message, userName, userId) => {
 const deleteMessage = async (id) => {
   const { error } = await supabase.from("image_messages").delete().eq("id", id);
   if (error) {
-    console.log("deleteMessage error:", error);
+    console.warn("deleteMessage error:", error);
     await showAlert(`deleteMessage error: ${error.message}`);
   }
 };
@@ -48,7 +48,7 @@ const renderMessageRow = (row, currentUserId, imageName, listId) => {
 export const loadMessages = async (imageName, listId, currentUserId, offset = 0) => {
   const el = document.getElementById(listId);
   if (!el) {
-    console.log("loadMessages: element not found:", listId);
+    console.warn("loadMessages: element not found:", listId);
     return;
   }
   const limit = offset === 0 ? INITIAL_LIMIT : MORE_LIMIT;
@@ -60,7 +60,7 @@ export const loadMessages = async (imageName, listId, currentUserId, offset = 0)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit);
   if (error) {
-    console.log("loadMessages error:", error);
+    console.warn("loadMessages error:", error);
     el.innerHTML = `<div class="msg-item"><span class="nes-text is-error">${error.message}</span></div>`;
     return;
   }
