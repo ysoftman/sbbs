@@ -153,8 +153,8 @@ mise use node@24
 # 최초 한번만 패키지 설치
 bun install
 
-# 로컬 테스트 (vite dev server 가 빌드 + 서빙을 자동으로 해준다)
-bun serve
+# 로컬 테스트 (vite 가 빌드 + 서빙을 자동으로 해준다)
+bun dev
 
 # 로컬 확인
 # http://localhost:5173/

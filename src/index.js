@@ -89,7 +89,7 @@ export const loadImages = async (htmlId, imageNames) => {
           if (!textarea.value.trim()) return;
           const userName = currentUser.is_anonymous
             ? "Anonymous"
-            : currentUser.user_metadata?.full_name || currentUser.email || "Unknown";
+            : currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Unknown";
           await saveMessage(name, textarea.value, userName);
           textarea.value = "";
           statusEl.innerHTML = "saved!";

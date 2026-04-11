@@ -27,7 +27,7 @@ supabase.auth.onAuthStateChange((_event, session) => {
       document.getElementById(loginAnonymousBoxID).innerHTML = makeLogoutBoxHTML("");
       return;
     }
-    const userName = `${user.user_metadata?.full_name || ""} ${user.email || ""}`;
+    const userName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown";
     document.getElementById(loginBoxID).innerHTML = makeLogoutBoxHTML(userName);
     document.getElementById(loginAnonymousBoxID).innerHTML = "login Anonymous";
   } else {
