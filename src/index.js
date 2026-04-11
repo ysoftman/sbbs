@@ -607,6 +607,14 @@ getVisitCnt("ysoftman", "visitcnt");
 
 let loadedDir = "";
 
+const updateActiveDir = (dir) => {
+  for (const d of imgDirs) {
+    const btn = document.getElementById(`load_${d}`);
+    if (!btn) continue;
+    btn.className = d === dir ? "nes-btn is-success" : "nes-btn is-primary";
+  }
+};
+
 const loadDirFromHash = (info, force = false) => {
   if (!info || !imgDirs.includes(info.dir)) return false;
   if (info.image) {
@@ -619,6 +627,7 @@ const loadDirFromHash = (info, force = false) => {
   }
   if (info.dir !== loadedDir || force) {
     loadedDir = info.dir;
+    updateActiveDir(info.dir);
     loadImg(info.dir, info.image);
   }
   return true;
@@ -628,6 +637,7 @@ const hashInfo = parseHash();
 if (!loadDirFromHash(hashInfo, true)) {
   if (imgDirs.length > 0) {
     loadedDir = imgDirs[0];
+    updateActiveDir(imgDirs[0]);
     loadImg(imgDirs[0]);
   }
 }
