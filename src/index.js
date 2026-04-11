@@ -11,7 +11,8 @@ const toSafeId = (name) => name.replaceAll(/[^a-zA-Z0-9]/g, "_");
 // 이미지별 textarea max-height 재계산 함수 저장
 const maxHeightUpdaters = {};
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_VIDEO_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml", "video/mp4"];
 
 const formatFileSize = (bytes) => {
@@ -457,8 +458,9 @@ let uploadDir = "";
 
 // 파일 업로드
 const uploadFile = async (file) => {
-  if (file.size > MAX_FILE_SIZE) {
-    alert(`File size exceeds 5MB limit (${formatFileSize(file.size)})`);
+  const maxSize = file.type === "video/mp4" ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+  if (file.size > maxSize) {
+    alert(`File size exceeds ${formatFileSize(maxSize)} limit (${formatFileSize(file.size)})`);
     return false;
   }
   if (!ALLOWED_TYPES.includes(file.type)) {
