@@ -52,7 +52,7 @@
 }
 
 html {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 html,
@@ -76,7 +76,7 @@ body {
   font-family: Roboto, Helvetica, Arial, sans-serif;
   margin: 0;
   padding: 5px;
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100vw;
 }
 
@@ -421,11 +421,19 @@ video {
   margin-left: auto;
 }
 
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--body-bg);
+}
+
 #img_buttons_row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  padding: 6px 5px;
 }
 
 #load_img_buttons {
@@ -514,7 +522,6 @@ video {
 
 .index-body {
   max-width: 100%;
-  overflow: hidden;
 }
 
 .index-navbar {

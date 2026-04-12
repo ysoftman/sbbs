@@ -21,40 +21,27 @@
         color: var(--body-text);
       }
     </style>
-    <nav class="index-navbar" aria-label="Main navigation">
-      <div class="container navbar-flex">
-        <button type="button" class="nes-btn is-purple" id="btn_version">
-          version
-        </button>
-        <span class="navbar-search">
-          <input type="text" class="nes-input is-dark" id="search_input" placeholder="search..." />
-          <button type="button" class="nes-btn is-primary" id="btn_search">Q</button>
-        </span>
-        <span class="navbar-views">views: <span class="nes-text is-success" id="viewcnt"></span></span>
-        <span class="navbar-login">
-          <button type="button" class="nes-btn is-primary" id="login_anonymous">
-            anonymous
+    <header class="sticky-header">
+      <nav class="index-navbar" aria-label="Main navigation">
+        <div class="container navbar-flex">
+          <button type="button" class="nes-btn is-purple" id="btn_version">
+            version
           </button>
-          <button type="button" class="nes-btn is-primary" id="login_google">
-            google
-          </button>
-        </span>
-      </div>
-    </nav>
-    <main class="index-body nes-text">
-      <div class="main" id="version_info" style="display: none">
-        <div class="version-row">
-          <p class="nes-balloon from-right is-dark">
-            <span class="nes-text is-primary">sbbs (simple bulletin board system) - a tiny retro board for sharing images</span
-            ><br />
-            <span class="nes-text is-error"
-              >this page uses NES.CSS, Press Start 2P and Galmuri11 font</span
-            ><br />
-            <span id="version"></span>
-          </p>
-          <i class="nes-octocat animate"></i>
+          <span class="navbar-search">
+            <input type="text" class="nes-input is-dark" id="search_input" placeholder="search..." />
+            <button type="button" class="nes-btn is-primary" id="btn_search">Q</button>
+          </span>
+          <span class="navbar-views">views: <span class="nes-text is-success" id="viewcnt"></span></span>
+          <span class="navbar-login">
+            <button type="button" class="nes-btn is-primary" id="login_anonymous">
+              anonymous
+            </button>
+            <button type="button" class="nes-btn is-primary" id="login_google">
+              google
+            </button>
+          </span>
         </div>
-      </div>
+      </nav>
       <div id="img_buttons_row">
         <button type="button" class="nes-btn is-disabled" id="btn_my_likes" disabled>♥ my likes</button>
         <button type="button" class="nes-btn is-primary" id="btn_latest">↑ latest</button>
@@ -62,6 +49,21 @@
         <button type="button" class="nes-btn is-disabled" id="btn_upload" disabled>upload</button>
         <input type="file" id="file_input" style="display: none" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.mp4" />
       </div>
+    </header>
+    <div class="main" id="version_info" style="display: none">
+      <div class="version-row">
+        <p class="nes-balloon from-right is-dark">
+          <span class="nes-text is-primary">sbbs (simple bulletin board system) - a tiny retro board for sharing images</span
+          ><br />
+          <span class="nes-text is-error"
+            >this page uses NES.CSS, Press Start 2P and Galmuri11 font</span
+          ><br />
+          <span id="version"></span>
+        </p>
+        <i class="nes-octocat animate"></i>
+      </div>
+    </div>
+    <main class="index-body nes-text">
       <div id="images" class="items"></div>
     </main>
     <script type="module" src="./src/index.js"></script>
