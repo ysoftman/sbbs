@@ -6,7 +6,7 @@ import "nes.css/css/nes.min.css";
 import { supabase } from "./common.js";
 import { loadImages } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
-import { showAlert } from "./utils.js";
+import { showAlert, showConfirm } from "./utils.js";
 
 const IMG_PAGE_SIZE = 2;
 let currentDir = "";
@@ -482,15 +482,9 @@ const showUploadDirPicker = (dirs) => {
   picker.innerHTML =
     '<div class="upload-dir-picker-inner nes-container is-dark">' +
     "<p>upload category</p>" +
-    dirs
-      .map(
-        (dir) =>
-          `<button class="nes-btn ${dir === currentDir ? "is-success" : "is-primary"} upload-dir-btn" data-dir="${dir}">${dir}</button>`,
-      )
-      .join(" ") +
-    '<br><br><div class="new-dir-row">' +
-    '<input class="nes-input is-dark new-dir-input" type="text" placeholder="new category" maxlength="50">' +
-    '<button class="nes-btn is-warning new-dir-btn">create</button>' +
+    '<div class="new-dir-row">' +
+    '<input class="nes-input is-dark new-dir-input" type="text" placeholder="category name" maxlength="50">' +
+    '<button class="nes-btn is-warning new-dir-btn">upload</button>' +
     "</div>" +
     '<br><button class="nes-btn is-error upload-dir-cancel">cancel</button>' +
     "</div>";
@@ -505,15 +499,7 @@ const showUploadDirPicker = (dirs) => {
   picker.addEventListener("keydown", (e) => {
     if (e.key === "Escape") picker.remove();
   });
-  // 기존 카테고리 선택
-  for (const btn of picker.querySelectorAll(".upload-dir-btn")) {
-    btn.addEventListener("click", () => {
-      setUploadDir(btn.dataset.dir);
-      picker.remove();
-      document.getElementById("file_input").click();
-    });
-  }
-  // 새 카테고리 생성 후 업로드
+  // 카테고리 입력 후 업로드
   const newDirInput = picker.querySelector(".new-dir-input");
   picker.querySelector(".new-dir-btn").addEventListener("click", async () => {
     const newDir = newDirInput.value.trim();
@@ -522,12 +508,12 @@ const showUploadDirPicker = (dirs) => {
       await showAlert("Category name must contain only alphanumeric characters, hyphens, and underscores");
       return;
     }
-    setUploadDir(newDir);
-    if (!imgDirs.includes(newDir)) {
+    if (imgDirs.includes(newDir)) {
+      if (!(await showConfirm(`"${newDir}" already exists. Upload to this category?`))) return;
+    } else {
       imgDirs.push(newDir);
-      const item = `<a class="nes-btn is-primary" id="load_${newDir}" href="#${encodeURIComponent(newDir)}">${newDir}</a>`;
-      document.getElementById("load_img_buttons").insertAdjacentHTML("beforeend", item);
     }
+    setUploadDir(newDir);
     picker.remove();
     document.getElementById("file_input").click();
   });
