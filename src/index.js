@@ -183,6 +183,7 @@ const loadDirFromHash = (info, force = false) => {
 
 // 최신 이미지 로드 (전체 카테고리 통합, 최신순)
 const loadLatest = async () => {
+  history.replaceState(null, "", window.location.pathname);
   updateActiveDir("__latest__");
   loadedDir = "__latest__";
   currentOffset = 0;
@@ -250,6 +251,7 @@ if (currentUploadUser && !currentUploadUser.is_anonymous) {
 }
 
 document.getElementById("btn_my_likes").addEventListener("click", async () => {
+  history.replaceState(null, "", window.location.pathname);
   updateActiveDir("__my_likes__");
   loadedDir = "__my_likes__";
   allImagesLoaded = true;
@@ -287,6 +289,7 @@ const doSearch = async () => {
   const query = document.getElementById("search_input").value.trim();
   if (!query) return;
 
+  history.replaceState(null, "", window.location.pathname);
   updateActiveDir("__search__");
   loadedDir = "__search__";
   allImagesLoaded = true;
