@@ -117,7 +117,7 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
   const likeHtml =
     `<span class="img-like" id="like_${msgId}">` +
     `<i class="nes-icon is-small ${isLiked ? "heart" : "heart is-transparent"} like-heart" ` +
-    `data-name="${escapeHtml(name)}" data-liked="${isLiked}"></i>` +
+    `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
     `<span class="like-count">${likeCount || ""}</span></span>`;
   const moveHtml = `<span class="img-file-move" id="file_move_${msgId}" style="display:none"></span>`;
   const deleteHtml = `<span class="img-file-delete" id="file_del_${msgId}" style="display:none"></span>`;
@@ -220,6 +220,7 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
     const heartEl = likeEl?.querySelector(".like-heart");
     if (heartEl) {
       heartEl.classList.add("clickable");
+      heartEl.removeAttribute("title");
       heartEl.addEventListener("click", async () => {
         const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
         if (error) {

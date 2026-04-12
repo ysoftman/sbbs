@@ -364,8 +364,10 @@ if (currentUploadUser && !currentUploadUser.is_anonymous) {
   myLikesBtn.className = "nes-btn is-error";
 
   await loadUserBookmarks(currentUploadUser.id);
-  document.getElementById("btn_bookmark_manage").style.display = "";
-  document.getElementById("btn_bookmark_manage").addEventListener("click", () => {
+  const bmBtn = document.getElementById("btn_bookmark_manage");
+  bmBtn.disabled = false;
+  bmBtn.className = "nes-btn";
+  bmBtn.addEventListener("click", () => {
     showBookmarkPicker(currentUploadUser.id);
   });
 }
