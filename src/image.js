@@ -9,6 +9,7 @@ import {
   getByteLength,
   makeDicebear,
   maxHeightUpdaters,
+  showAlert,
   showConfirm,
   toSafeId,
 } from "./utils.js";
@@ -212,6 +213,14 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
           if (container) container.remove();
         }
       });
+    }
+  }
+  // 비로그인/anonymous 사용자: 하트 클릭 시 로그인 안내
+  if (!currentUser || currentUser.is_anonymous) {
+    const heartEl = document.getElementById(`like_${msgId}`)?.querySelector(".like-heart");
+    if (heartEl) {
+      heartEl.style.cursor = "pointer";
+      heartEl.addEventListener("click", () => showAlert("Google login required"));
     }
   }
   // 구글 로그인 사용자만 좋아요 클릭 가능 (anonymous 제외)

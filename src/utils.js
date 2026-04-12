@@ -53,6 +53,9 @@ export const showAlert = (message) => {
       resolve();
     };
     ok.addEventListener("click", close);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) close();
+    });
     overlay.addEventListener("keydown", (e) => {
       if (e.key === "Escape") close();
       if (e.key === "Tab") {

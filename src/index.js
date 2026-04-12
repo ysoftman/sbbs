@@ -272,7 +272,7 @@ const updateActiveDir = (dir) => {
   }
   document.getElementById("btn_latest").className = dir === "__latest__" ? "nes-btn is-success" : "nes-btn is-primary";
   const myLikesBtn = document.getElementById("btn_my_likes");
-  if (!myLikesBtn.disabled) {
+  if (!myLikesBtn.classList.contains("needs-google")) {
     myLikesBtn.className = dir === "__my_likes__" ? "nes-btn is-success" : "nes-btn is-error";
   }
 };
@@ -354,25 +354,33 @@ const {
 } = await supabase.auth.getUser();
 if (currentUploadUser) {
   const uploadBtn = document.getElementById("btn_upload");
-  uploadBtn.disabled = false;
-  uploadBtn.className = "nes-btn is-warning";
+  uploadBtn.classList.remove("is-disabled", "needs-login");
+  uploadBtn.classList.add("is-warning");
 }
+// 비활성 버튼 클릭 시 로그인 안내 팝업
+document.getElementById("img_buttons_row").addEventListener("click", (e) => {
+  const btn = e.target.closest(".needs-google");
+  if (btn) showAlert("Google login required");
+  const loginBtn = e.target.closest(".needs-login");
+  if (loginBtn) showAlert("Login required");
+});
+
 // 구글 로그인 사용자: my likes + 북마크 카테고리 + 북마크 관리
 if (currentUploadUser && !currentUploadUser.is_anonymous) {
   const myLikesBtn = document.getElementById("btn_my_likes");
-  myLikesBtn.disabled = false;
-  myLikesBtn.className = "nes-btn is-error";
+  myLikesBtn.classList.remove("is-disabled", "needs-google");
+  myLikesBtn.classList.add("is-error");
 
   await loadUserBookmarks(currentUploadUser.id);
   const bmBtn = document.getElementById("btn_bookmark_manage");
-  bmBtn.disabled = false;
-  bmBtn.className = "nes-btn";
+  bmBtn.classList.remove("is-disabled", "needs-google");
   bmBtn.addEventListener("click", () => {
     showBookmarkPicker(currentUploadUser.id);
   });
 }
 
 document.getElementById("btn_my_likes").addEventListener("click", async () => {
+  if (document.getElementById("btn_my_likes").classList.contains("needs-google")) return;
   history.replaceState(null, "", window.location.pathname);
   updateActiveDir("__my_likes__");
   loadedDir = "__my_likes__";
