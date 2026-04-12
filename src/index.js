@@ -2,6 +2,7 @@ import "./common.js";
 import "@fontsource/press-start-2p";
 import "galmuri/dist/galmuri.css";
 import "nes.css/css/nes.min.css";
+import "@phosphor-icons/web/fill";
 
 import { supabase } from "./common.js";
 import { loadImages } from "./image.js";

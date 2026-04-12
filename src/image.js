@@ -164,7 +164,7 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
   const isLiked = userLikeSet.has(name);
   const likeHtml =
     `<span class="img-like" id="like_${msgId}">` +
-    `<i class="nes-icon is-small ${isLiked ? "heart" : "heart is-transparent"} like-heart" ` +
+    `<i class="ph-fill ${isLiked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart" ` +
     `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
     `<span class="like-count">${likeCount || ""}</span></span>`;
   const moveHtml = `<span class="img-file-move" id="file_move_${msgId}" style="display:none"></span>`;
@@ -284,7 +284,7 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
           return;
         }
         heartEl.dataset.liked = data.liked;
-        heartEl.className = `nes-icon is-small ${data.liked ? "heart" : "heart is-transparent"} like-heart clickable`;
+        heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
         likeEl.querySelector(".like-count").textContent = data.like_count || "";
       });
     }

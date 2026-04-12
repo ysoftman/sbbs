@@ -613,11 +613,22 @@ video {
   gap: 2px;
   vertical-align: middle;
   margin-left: 4px;
+  margin-right: 12px;
 }
 
 .like-heart {
   cursor: default;
   transition: transform 0.1s;
+  font-size: 18px;
+  vertical-align: middle;
+}
+
+.like-heart.like-active {
+  color: var(--color-red);
+}
+
+.like-heart.like-inactive {
+  color: var(--color-text-muted);
 }
 
 .like-heart.clickable {
