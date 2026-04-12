@@ -1,4 +1,4 @@
-# supabase test
+# simple bbs
 
 Image/video gallery web app using Supabase Storage, Auth, and Database.
 
