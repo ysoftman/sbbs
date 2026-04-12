@@ -1,23 +1,23 @@
 # supabase test
 
-이미지/동영상 갤러리 웹앱. Supabase Storage, Auth, Database 를 사용한다.
+Image/video gallery web app using Supabase Storage, Auth, and Database.
 
-## 주요 기능
+## Key Features
 
-- 카테고리(디렉토리)별 이미지/동영상 조회 (최신순, 무한 스크롤)
-- Google / Anonymous 로그인
-- 이미지별 메시지 작성/삭제 (10,000 bytes 제한, 5개씩 더보기)
-- 파일 업로드 (이미지 5MB, mp4 10MB, 디렉토리 선택)
-- 본인 업로드 파일 삭제, admin 은 모든 파일 삭제 가능
-- URL hash 기반 딥링크 (`#카테고리`, `#카테고리/파일명`)
+- Browse images/videos by category (directory), sorted by newest, with infinite scroll
+- Google / Anonymous sign-in
+- Per-image comments: create/delete (10,000 bytes limit, load more in batches of 5)
+- File upload (images 5MB, mp4 10MB, with directory selection)
+- Delete your own uploaded files; admins can delete any file
+- URL hash-based deep linking (`#category`, `#category/filename`)
 
-## supabase 프로젝트 생성 후 최초 설정
+## Initial Setup After Creating a Supabase Project
 
 ```bash
-# https://supabase.com/dashboard 에서 새 프로젝트 생성
-# Settings > General > Project ID 확인 후 Project URL 조합 (.com 이 아니라 .co 임에 주의)
-# Settings > API Keys > Publishable and secret API keys 탭에서 확인
-# src/supabase_config.js(.gitignore 로 추가했음) 생성
+# Create a new project at https://supabase.com/dashboard
+# Check Settings > General > Project ID and compose the Project URL (note: .co, not .com)
+# Check Settings > API Keys > Publishable and secret API keys tab
+# Create src/supabase_config.js (added to .gitignore)
 cat << zzz >! src/supabase_config.js
 export const supabaseUrl = () => {
   return "https://<project-id>.supabase.co";
@@ -29,104 +29,104 @@ export const supabasePublishableKey = () => {
 zzz
 ```
 
-## supabase 대시보드 설정
+## Supabase Dashboard Configuration
 
-### Authentication 설정
+### Authentication Setup
 
-- Google Cloud Console 에서 OAuth 클라이언트 생성:
-  1. [Google Cloud Console](https://console.cloud.google.com/) 접속
-  2. **API 및 서비스 > OAuth 동의 화면** 에서 동의 화면 생성 (없는 경우)
-     - 테스트 단계에서는 **테스트 사용자**에 본인 이메일을 추가해야 로그인 가능
-  3. **API 및 서비스 > 사용자 인증 정보 > + 사용자 인증 정보 만들기 > OAuth 클라이언트 ID** 선택
-  4. 애플리케이션 유형: **웹 애플리케이션**
-  5. **승인된 리디렉션 URI** 에 추가: `https://<project-id>.supabase.co/auth/v1/callback`
-  6. **만들기** 클릭 후 **클라이언트 ID** 와 **클라이언트 보안 비밀번호** 복사
-- Supabase 대시보드에서 Google 제공자 활성화:
-  1. Authentication > Sign In / Providers > Third-Party Auth 탭 > Google 활성화
-  2. Client IDs: 위에서 복사한 클라이언트 ID 입력 (공백 없이, 쉼표로 구분)
-  3. Client Secret (for OAuth): 위에서 복사한 클라이언트 보안 비밀번호 입력
-  4. Callback URL (for OAuth): `https://<project-id>.supabase.co/auth/v1/callback` (자동 생성됨)
-- Authentication > Sign In / Providers > Supabase Auth 탭 > Allow anonymous sign-ins 활성화
-- Authentication > URL Configuration 설정:
-  - **Site URL**: `https://ysoftman.github.io/supabase` (로그인 후 최종 redirect 대상)
-  - **Redirect URLs**: `https://ysoftman.github.io/supabase` 추가
-  - 로컬 테스트 시 `http://localhost:5173/sbbs/` 도 Redirect URLs 에 추가
-- Google Cloud Console > OAuth 클라이언트 > **승인된 자바스크립트 원본**에 `http://localhost:5173` 추가
+- Create an OAuth client in Google Cloud Console:
+  1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+  2. Under **APIs & Services > OAuth consent screen**, create a consent screen (if none exists)
+     - During testing, add your email to **Test users** to enable sign-in
+  3. Go to **APIs & Services > Credentials > + Create Credentials > OAuth client ID**
+  4. Application type: **Web application**
+  5. Add to **Authorized redirect URIs**: `https://<project-id>.supabase.co/auth/v1/callback`
+  6. Click **Create**, then copy the **Client ID** and **Client secret**
+- Enable Google provider in Supabase Dashboard:
+  1. Authentication > Sign In / Providers > Third-Party Auth tab > Enable Google
+  2. Client IDs: enter the copied Client ID (no spaces, comma-separated)
+  3. Client Secret (for OAuth): enter the copied Client secret
+  4. Callback URL (for OAuth): `https://<project-id>.supabase.co/auth/v1/callback` (auto-generated)
+- Authentication > Sign In / Providers > Supabase Auth tab > Enable "Allow anonymous sign-ins"
+- Authentication > URL Configuration:
+  - **Site URL**: `https://ysoftman.github.io/supabase` (final redirect target after sign-in)
+  - **Redirect URLs**: add `https://ysoftman.github.io/supabase`
+  - For local testing, also add `http://localhost:5173/sbbs/` to Redirect URLs
+- Google Cloud Console > OAuth client > Add `http://localhost:5173` to **Authorized JavaScript origins**
 
-### Storage 설정
+### Storage Setup
 
 ```bash
-# Storage > New bucket > "images" 버킷 생성 (Public bucket 체크)
-# 이미지 파일 업로드는 대시보드에서 드래그앤드롭으로 가능
+# Storage > New bucket > Create "images" bucket (check "Public bucket")
+# You can upload image files via drag-and-drop in the dashboard
 ```
 
-### Storage Policy 설정
+### Storage Policy Setup
 
-Storage > Policies > images 버킷 > New policy:
+Storage > Policies > images bucket > New policy:
 
 - Policy name: `read image`
-- Allowed operation: SELECT 체크 (download, list, createSignedUrl, createSignedUrls, getPublicUrl 허용됨)
-- Target roles: 기본값 (all public roles)
+- Allowed operation: check SELECT (allows download, list, createSignedUrl, createSignedUrls, getPublicUrl)
+- Target roles: default (all public roles)
 - Policy definition: `bucket_id = 'images'`
 
-### Database 설정
+### Database Setup
 
-테이블 생성, RLS 정책, 마이그레이션은 [DATABASE.md](DATABASE.md) 참조.
+For table creation, RLS policies, and migrations, see [DATABASE.md](DATABASE.md).
 
-### Storage 파일명 제한 (non-ASCII 문자 불가)
+### Storage Filename Restrictions (non-ASCII Characters Not Allowed)
 
-Supabase Storage 는 한글, 중국어 등 non-ASCII 문자가 포함된 파일명을 지원하지 않는다.
-대시보드에서 드래그앤드롭 업로드 시 `InvalidKey` 에러가 발생한다.
+Supabase Storage does not support filenames containing non-ASCII characters such as Korean or Chinese.
+Drag-and-drop uploads in the dashboard will result in an `InvalidKey` error.
 
 - `병아리.jpg` (X) → `chick.jpg` (O)
 - `방독면-아이콘.png` (X) → `gas_mask_icon.png` (O)
 
-관련 이슈:
+Related issues:
 
 - <https://github.com/supabase/supabase/issues/34595>
 - <https://github.com/supabase/storage/issues/133>
 - <https://github.com/supabase/supabase/issues/22974>
 
-## 프로젝트 배포
+## Project Deployment
 
 ```bash
-# mise 툴로 이프로젝트에서 사용할 node 버전 고정 및 설치
+# Pin and install the Node version for this project using mise
 mise use node@24
 
-# 최초 한번만 패키지 설치
+# Install packages (first time only)
 bun install
 
-# 로컬 테스트 (vite 가 빌드 + 서빙을 자동으로 해준다)
+# Local development (vite handles build + serving automatically)
 bun dev
 
-# 로컬 확인
+# Local preview
 # http://localhost:5173/
 ```
 
-## GitHub Pages 배포
+## GitHub Pages Deployment
 
-### GitHub Actions 자동 배포
+### Automatic Deployment via GitHub Actions
 
-`supabase/` 하위 파일이 변경되어 `main`에 push 되면 GitHub Actions 가 자동으로 빌드/배포한다.
+When files under `supabase/` are changed and pushed to `main`, GitHub Actions automatically builds and deploys.
 
-- workflow 파일: `.github/workflows/deploy-supabase.yml`
-- 배포 URL: `https://ysoftman.github.io/supabase/`
+- Workflow file: `.github/workflows/deploy-supabase.yml`
+- Deployment URL: `https://ysoftman.github.io/supabase/`
 
-### GitHub 레포 설정 (최초 1회)
+### GitHub Repo Settings (One-Time Setup)
 
-1. GitHub 레포 > Settings > Pages > Source 를 `GitHub Actions` 로 변경
+1. GitHub repo > Settings > Pages > Change Source to `GitHub Actions`
 
-### GitHub Secrets 설정 (최초 1회)
+### GitHub Secrets Setup (One-Time Setup)
 
-`src/supabase_config.js` 는 `.gitignore` 에 포함되어 있어 GitHub Actions 빌드 시 존재하지 않는다.
-GitHub Secrets 로 주입해야 한다.
+`src/supabase_config.js` is included in `.gitignore`, so it does not exist during GitHub Actions builds.
+It must be injected via GitHub Secrets.
 
-1. GitHub 레포 > Settings > Secrets and variables > Actions
-2. **Repository secrets** 에 다음 추가:
+1. GitHub repo > Settings > Secrets and variables > Actions
+2. Add the following to **Repository secrets**:
    - `SUPABASE_URL`: Supabase Project URL
    - `SUPABASE_PUBLISHABLE_KEY`: Supabase Publishable Key (`sb_publishable_...`)
 
-## 참고
+## References
 
 - <https://supabase.com/docs>
 - <https://supabase.com/docs/guides/auth>
