@@ -3,9 +3,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>sbbs</title>
-    <meta name="description" content="Simple BBS - retro-style bulletin board powered by Supabase">
+    <meta name="description" content="sbbs - a tiny retro board for sharing images">
     <meta property="og:title" content="sbbs">
-    <meta property="og:description" content="Simple BBS - retro-style bulletin board powered by Supabase">
+    <meta property="og:description" content="sbbs - a tiny retro board for sharing images">
     <meta property="og:type" content="website">
   </head>
   <body>
@@ -25,17 +25,13 @@
       <div class="container navbar-flex">
         <a href="index.html">
           <button type="button" class="nes-btn is-success">
-            <b>index</b>
+            <b>sbbs</b>
           </button>
         </a>
         <button type="button" class="nes-btn is-purple" id="btn_version">
           version
         </button>
-        <button type="button" class="nes-btn is-disabled" id="btn_my_likes" disabled>
-            ♥ my likes
-          </button>
-        <button type="button" class="nes-btn is-disabled" id="btn_upload" disabled>upload</button>
-        <input type="file" id="file_input" style="display: none" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.mp4" />
+        <span class="navbar-views">views: <span class="nes-text is-success" id="viewcnt"></span></span>
         <span class="navbar-login">
           <button type="button" class="nes-btn is-primary" id="login_anonymous">
             anonymous
@@ -50,27 +46,22 @@
       <div class="main" id="version_info" style="display: none">
         <div class="version-row">
           <p class="nes-balloon from-right is-dark">
-            <span class="nes-text is-primary">sbbs (simple bbs)</span
+            <span class="nes-text is-primary">sbbs (simple bulletin board system) - a tiny retro board for sharing images</span
             ><br />
             <span class="nes-text is-error"
-              >this page uses NES.CSS and Press Start 2P font</span
+              >this page uses NES.CSS, Press Start 2P and Galmuri11 font</span
             ><br />
             <span id="version"></span>
           </p>
           <i class="nes-octocat animate"></i>
         </div>
       </div>
-      <div class="lists">
-        <ul class="nes-list is-disc">
-          <li style="font-size: 1.4em">
-            views:
-            <span class="nes-text is-success" id="viewcnt"></span>
-          </li>
-        </ul>
+      <div id="img_buttons_row">
+        <button type="button" class="nes-btn is-disabled" id="btn_my_likes" disabled>♥ my likes</button>
+        <span id="load_img_buttons"></span>
+        <button type="button" class="nes-btn is-disabled" id="btn_upload" disabled>upload</button>
+        <input type="file" id="file_input" style="display: none" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.mp4" />
       </div>
-      <p>
-        <span id="load_img_buttons"> </span>
-      </p>
       <div id="images" class="items"></div>
     </main>
     <script type="module" src="./src/index.js"></script>
