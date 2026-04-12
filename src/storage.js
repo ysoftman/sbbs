@@ -14,7 +14,7 @@ export const getMeta = (url, cb) => {
   img.src = url;
 };
 
-// supabase storage 디렉토리 목록 조회
+// supabase storage 카테고리 목록 조회
 export const getImageDirs = async (path) => {
   const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(path, {
     limit: 1000,
@@ -200,7 +200,7 @@ export const uploadFile = async (file) => {
   return true;
 };
 
-// 업로드 대상 디렉토리
+// 업로드 대상 카테고리
 export let uploadDir = "";
 export const setUploadDir = (dir) => {
   uploadDir = dir;

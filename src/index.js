@@ -226,7 +226,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   updateSentinel();
 });
 
-// 업로드 디렉토리 선택 팝업
+// 업로드 카테고리 선택 팝업
 const showUploadDirPicker = (dirs) => {
   const existing = document.getElementById("upload-dir-picker");
   if (existing) existing.remove();
@@ -236,7 +236,7 @@ const showUploadDirPicker = (dirs) => {
   picker.className = "upload-dir-picker";
   picker.innerHTML =
     '<div class="upload-dir-picker-inner nes-container is-dark">' +
-    "<p>upload directory</p>" +
+    "<p>upload category</p>" +
     dirs
       .map(
         (dir) =>
