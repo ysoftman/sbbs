@@ -479,8 +479,26 @@ video {
   min-height: auto;
 }
 
-.bm-toggle-btn {
+.bm-toggle-btn,
+.bm-add-btn {
   margin: 4px;
+}
+
+.bm-bookmarked {
+  margin: 8px 0;
+}
+
+.bm-search-input {
+  width: 100%;
+  font-size: 12px;
+  padding: 4px 8px;
+  height: auto;
+}
+
+.bm-search-results {
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .nes-container.with-title {

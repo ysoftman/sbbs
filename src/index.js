@@ -228,40 +228,91 @@ const showBookmarkPicker = (userId) => {
   const picker = document.createElement("div");
   picker.id = "bookmark-picker";
   picker.className = "upload-dir-picker";
-  picker.innerHTML =
-    '<div class="upload-dir-picker-inner nes-container is-dark">' +
-    `<p>bookmark categories (${userBookmarks.size}/${MAX_BOOKMARKS})</p>` +
-    imgDirs
-      .map(
-        (dir) =>
-          `<button class="nes-btn ${userBookmarks.has(dir) ? "is-success" : ""} bm-toggle-btn" data-dir="${dir}">${userBookmarks.has(dir) ? "📌 " : ""}${dir}</button>`,
-      )
-      .join(" ") +
-    '<br><br><button class="nes-btn is-error bm-close">close</button>' +
-    "</div>";
+
+  const renderPickerContent = () => {
+    const bookmarked = imgDirs.filter((d) => userBookmarks.has(d));
+    const bookmarkedHtml = bookmarked.length > 0
+      ? bookmarked
+          .map(
+            (dir) =>
+              `<button class="nes-btn is-success bm-toggle-btn" data-dir="${dir}">📌 ${dir}</button>`,
+          )
+          .join(" ")
+      : '<span class="nes-text is-disabled">no bookmarks</span>';
+
+    return (
+      '<div class="upload-dir-picker-inner nes-container is-dark">' +
+      `<p class="bm-count">bookmark (${userBookmarks.size}/${MAX_BOOKMARKS})</p>` +
+      `<div class="bm-bookmarked">${bookmarkedHtml}</div>` +
+      '<br><div class="new-dir-row">' +
+      '<input class="nes-input is-dark bm-search-input" type="text" placeholder="search category..." />' +
+      "</div>" +
+      '<div class="bm-search-results"></div>' +
+      '<br><button class="nes-btn is-error bm-close">close</button>' +
+      "</div>"
+    );
+  };
+
+  picker.innerHTML = renderPickerContent();
   document.body.appendChild(picker);
   picker.tabIndex = -1;
   picker.focus();
 
-  picker.querySelector(".bm-close").addEventListener("click", () => picker.remove());
-  picker.addEventListener("click", (e) => {
-    if (e.target === picker) picker.remove();
-  });
-  picker.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") picker.remove();
-  });
-  for (const btn of picker.querySelectorAll(".bm-toggle-btn")) {
-    btn.addEventListener("click", async () => {
-      await toggleBookmark(userId, btn.dataset.dir);
-      // 피커 내 버튼 상태 갱신
-      for (const b of picker.querySelectorAll(".bm-toggle-btn")) {
-        const d = b.dataset.dir;
-        b.className = `nes-btn ${userBookmarks.has(d) ? "is-success" : ""} bm-toggle-btn`;
-        b.textContent = `${userBookmarks.has(d) ? "📌 " : ""}${d}`;
-      }
-      picker.querySelector("p").textContent = `bookmark categories (${userBookmarks.size}/${MAX_BOOKMARKS})`;
+  const refreshPicker = () => {
+    const searchVal = picker.querySelector(".bm-search-input")?.value || "";
+    picker.innerHTML = renderPickerContent();
+    const input = picker.querySelector(".bm-search-input");
+    input.value = searchVal;
+    input.focus();
+    if (searchVal) filterCategories(searchVal);
+    bindPickerEvents();
+  };
+
+  const filterCategories = (query) => {
+    const resultsEl = picker.querySelector(".bm-search-results");
+    if (!query) {
+      resultsEl.innerHTML = "";
+      return;
+    }
+    const q = query.toLowerCase();
+    const matched = imgDirs.filter((d) => d.toLowerCase().includes(q) && !userBookmarks.has(d));
+    if (matched.length === 0) {
+      resultsEl.innerHTML = '<span class="nes-text is-disabled">no match</span>';
+      return;
+    }
+    resultsEl.innerHTML = matched
+      .map((dir) => `<button class="nes-btn bm-add-btn" data-dir="${dir}">${dir}</button>`)
+      .join(" ");
+    for (const btn of resultsEl.querySelectorAll(".bm-add-btn")) {
+      btn.addEventListener("click", async () => {
+        await toggleBookmark(userId, btn.dataset.dir);
+        refreshPicker();
+      });
+    }
+  };
+
+  const bindPickerEvents = () => {
+    picker.querySelector(".bm-close").addEventListener("click", () => picker.remove());
+    picker.addEventListener("click", (e) => {
+      if (e.target === picker) picker.remove();
     });
-  }
+    picker.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") picker.remove();
+    });
+    // 북마크 해제
+    for (const btn of picker.querySelectorAll(".bm-toggle-btn")) {
+      btn.addEventListener("click", async () => {
+        await toggleBookmark(userId, btn.dataset.dir);
+        refreshPicker();
+      });
+    }
+    // 검색 입력
+    picker.querySelector(".bm-search-input").addEventListener("input", (e) => {
+      filterCategories(e.target.value.trim());
+    });
+  };
+
+  bindPickerEvents();
 };
 
 const updateActiveDir = (dir) => {
