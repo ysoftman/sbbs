@@ -51,6 +51,26 @@
   --navbar-border-color: var(--color-border);
 }
 
+:root.light {
+  --color-bg-deep: #e8e8e8;
+  --color-bg-base: #f5f5f5;
+  --color-bg-surface: #ffffff;
+  --color-bg-overlay: rgba(255, 255, 255, 0.85);
+  --color-bg-overlay-bar: rgba(255, 255, 255, 0.65);
+  --color-text-primary: #2a2a2a;
+  --color-text-secondary: #6a6a6a;
+  --color-text-muted: #999999;
+  --color-text-bright: #111111;
+  --color-border: #cccccc;
+  --color-gold: #b8860b;
+  --color-sky: #2070c0;
+  --color-green: #4a8c20;
+  --color-blue: #1a70b0;
+  --color-red: #c0392b;
+  --color-red-light: #e74c3c;
+  --color-link: #2070c0;
+}
+
 html {
   overflow-x: clip;
 }
@@ -409,7 +429,20 @@ video {
   height: auto;
 }
 
-.navbar-views {
+.navbar-home {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--color-gold);
+  text-decoration: none;
+}
+
+.navbar-home:hover {
+  color: var(--color-orange);
+}
+
+.navbar-stats {
+  display: flex;
+  gap: 8px;
   font-size: 12px;
   color: var(--color-text-secondary);
 }
@@ -683,6 +716,30 @@ video {
   }
 
   .navbar-flex .nes-btn {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
+  .navbar-home {
+    font-size: 12px;
+  }
+
+  .navbar-stats {
+    gap: 4px;
+    font-size: 9px;
+  }
+
+  .navbar-search .nes-input {
+    width: min(100px, 25vw);
+    font-size: 9px;
+  }
+
+  #img_buttons_row {
+    gap: 4px;
+    padding: 4px 2px;
+  }
+
+  #img_buttons_row .nes-btn {
     font-size: 10px;
     padding: 4px 8px;
   }

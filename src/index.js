@@ -138,6 +138,18 @@ document.getElementById("btn_version").addEventListener("click", () => {
   el.style.display = el.style.display === "none" ? "" : "none";
 });
 
+// 다크/라이트 테마 토글
+const themeBtn = document.getElementById("btn_theme");
+const applyTheme = (light) => {
+  document.documentElement.classList.toggle("light", light);
+  themeBtn.textContent = light ? "☾" : "☀";
+  localStorage.setItem("sbbs-theme", light ? "light" : "dark");
+};
+applyTheme(localStorage.getItem("sbbs-theme") === "light");
+themeBtn.addEventListener("click", () => {
+  applyTheme(!document.documentElement.classList.contains("light"));
+});
+
 const imgDirs = await getImageDirs("");
 if (imgDirs.length === 0) {
   document.getElementById("images").innerHTML = '<p class="empty-state">No categories found</p>';
@@ -149,14 +161,21 @@ for (const dir of imgDirs) {
 
 getViewCnt("ysoftman", "viewcnt");
 
+// 전체 이미지 수 표시
+supabase
+  .from("image_info")
+  .select("id", { count: "exact", head: true })
+  .then(({ count }) => {
+    document.getElementById("imgcnt").textContent = count ?? 0;
+  });
+
 const updateActiveDir = (dir) => {
   for (const d of imgDirs) {
     const btn = document.getElementById(`load_${d}`);
     if (!btn) continue;
     btn.className = d === dir ? "nes-btn is-success" : "nes-btn is-primary";
   }
-  document.getElementById("btn_latest").className =
-    dir === "__latest__" ? "nes-btn is-success" : "nes-btn is-primary";
+  document.getElementById("btn_latest").className = dir === "__latest__" ? "nes-btn is-success" : "nes-btn is-primary";
   const myLikesBtn = document.getElementById("btn_my_likes");
   if (!myLikesBtn.disabled) {
     myLikesBtn.className = dir === "__my_likes__" ? "nes-btn is-success" : "nes-btn is-error";

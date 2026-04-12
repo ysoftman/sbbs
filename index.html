@@ -24,21 +24,22 @@
     <header class="sticky-header">
       <nav class="index-navbar" aria-label="Main navigation">
         <div class="container navbar-flex">
-          <button type="button" class="nes-btn is-purple" id="btn_version">
-            version
-          </button>
+          <a href="index.html" class="navbar-home">sbbs</a>
           <span class="navbar-search">
             <input type="text" class="nes-input is-dark" id="search_input" placeholder="search..." />
             <button type="button" class="nes-btn is-primary" id="btn_search">Q</button>
           </span>
-          <span class="navbar-views">views: <span class="nes-text is-success" id="viewcnt"></span></span>
+          <span class="navbar-stats">
+            <span class="navbar-views">views: <span class="nes-text is-success" id="viewcnt"></span></span>
+            <span class="navbar-views">images: <span class="nes-text is-success" id="imgcnt"></span></span>
+          </span>
           <span class="navbar-login">
-            <button type="button" class="nes-btn is-primary" id="login_anonymous">
-              anonymous
-            </button>
+            <button type="button" class="nes-btn" id="btn_theme" title="toggle theme">☀</button>
+            <button type="button" class="nes-btn is-primary" id="login_anonymous">anon</button>
             <button type="button" class="nes-btn is-primary" id="login_google">
               <i class="nes-icon google is-small"></i> login
             </button>
+            <button type="button" class="nes-btn is-purple" id="btn_version">ver</button>
           </span>
         </div>
       </nav>
