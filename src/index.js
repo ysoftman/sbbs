@@ -154,10 +154,6 @@ const imgDirs = await getImageDirs("");
 if (imgDirs.length === 0) {
   document.getElementById("images").innerHTML = '<p class="empty-state">No categories found</p>';
 }
-for (const dir of imgDirs) {
-  const item = `<a class="nes-btn is-primary" id="load_${dir}" href="#${encodeURIComponent(dir)}">${dir}</a>`;
-  document.getElementById("load_img_buttons").insertAdjacentHTML("beforeend", item);
-}
 
 getViewCnt("ysoftman", "viewcnt");
 
@@ -168,6 +164,105 @@ supabase
   .then(({ count }) => {
     document.getElementById("imgcnt").textContent = count ?? 0;
   });
+
+// 북마크된 카테고리 버튼 렌더링
+const MAX_BOOKMARKS = 10;
+let userBookmarks = new Set();
+
+const renderCategoryButtons = () => {
+  const container = document.getElementById("load_img_buttons");
+  container.innerHTML = "";
+  for (const dir of imgDirs) {
+    if (!userBookmarks.has(dir)) continue;
+    const item = `<a class="nes-btn is-primary bookmark-cat" id="load_${dir}" href="#${encodeURIComponent(dir)}">📌 ${dir}</a>`;
+    container.insertAdjacentHTML("beforeend", item);
+  }
+};
+
+const loadUserBookmarks = async (userId) => {
+  const { data } = await supabase
+    .from("category_bookmarks")
+    .select("category_name")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+  userBookmarks = new Set((data || []).map((r) => r.category_name));
+  renderCategoryButtons();
+};
+
+const toggleBookmark = async (userId, category) => {
+  if (userBookmarks.has(category)) {
+    const { error } = await supabase
+      .from("category_bookmarks")
+      .delete()
+      .eq("user_id", userId)
+      .eq("category_name", category);
+    if (error) {
+      console.warn("delete bookmark error:", error);
+      await showAlert(`Bookmark delete error: ${error.message}`);
+      return;
+    }
+    userBookmarks.delete(category);
+  } else {
+    if (userBookmarks.size >= MAX_BOOKMARKS) {
+      await showAlert(`Max ${MAX_BOOKMARKS} bookmarks`);
+      return;
+    }
+    const { error } = await supabase
+      .from("category_bookmarks")
+      .insert({ user_id: userId, category_name: category });
+    if (error) {
+      console.warn("insert bookmark error:", error);
+      await showAlert(`Bookmark save error: ${error.message}`);
+      return;
+    }
+    userBookmarks.add(category);
+  }
+  renderCategoryButtons();
+};
+
+// 북마크 관리 피커
+const showBookmarkPicker = (userId) => {
+  const existing = document.getElementById("bookmark-picker");
+  if (existing) existing.remove();
+
+  const picker = document.createElement("div");
+  picker.id = "bookmark-picker";
+  picker.className = "upload-dir-picker";
+  picker.innerHTML =
+    '<div class="upload-dir-picker-inner nes-container is-dark">' +
+    `<p>bookmark categories (${userBookmarks.size}/${MAX_BOOKMARKS})</p>` +
+    imgDirs
+      .map(
+        (dir) =>
+          `<button class="nes-btn ${userBookmarks.has(dir) ? "is-success" : ""} bm-toggle-btn" data-dir="${dir}">${userBookmarks.has(dir) ? "📌 " : ""}${dir}</button>`,
+      )
+      .join(" ") +
+    '<br><br><button class="nes-btn is-error bm-close">close</button>' +
+    "</div>";
+  document.body.appendChild(picker);
+  picker.tabIndex = -1;
+  picker.focus();
+
+  picker.querySelector(".bm-close").addEventListener("click", () => picker.remove());
+  picker.addEventListener("click", (e) => {
+    if (e.target === picker) picker.remove();
+  });
+  picker.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") picker.remove();
+  });
+  for (const btn of picker.querySelectorAll(".bm-toggle-btn")) {
+    btn.addEventListener("click", async () => {
+      await toggleBookmark(userId, btn.dataset.dir);
+      // 피커 내 버튼 상태 갱신
+      for (const b of picker.querySelectorAll(".bm-toggle-btn")) {
+        const d = b.dataset.dir;
+        b.className = `nes-btn ${userBookmarks.has(d) ? "is-success" : ""} bm-toggle-btn`;
+        b.textContent = `${userBookmarks.has(d) ? "📌 " : ""}${d}`;
+      }
+      picker.querySelector("p").textContent = `bookmark categories (${userBookmarks.size}/${MAX_BOOKMARKS})`;
+    });
+  }
+};
 
 const updateActiveDir = (dir) => {
   for (const d of imgDirs) {
@@ -262,11 +357,17 @@ if (currentUploadUser) {
   uploadBtn.disabled = false;
   uploadBtn.className = "nes-btn is-warning";
 }
-// 구글 로그인 사용자만 "my likes" 버튼 활성화
+// 구글 로그인 사용자: my likes + 북마크 카테고리 + 북마크 관리
 if (currentUploadUser && !currentUploadUser.is_anonymous) {
   const myLikesBtn = document.getElementById("btn_my_likes");
   myLikesBtn.disabled = false;
   myLikesBtn.className = "nes-btn is-error";
+
+  await loadUserBookmarks(currentUploadUser.id);
+  document.getElementById("btn_bookmark_manage").style.display = "";
+  document.getElementById("btn_bookmark_manage").addEventListener("click", () => {
+    showBookmarkPicker(currentUploadUser.id);
+  });
 }
 
 document.getElementById("btn_my_likes").addEventListener("click", async () => {

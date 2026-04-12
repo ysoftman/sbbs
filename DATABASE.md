@@ -128,9 +128,7 @@ CREATE POLICY "Allow read" ON image_likes FOR SELECT USING (true);
 CREATE POLICY "Allow insert for authenticated" ON image_likes
   FOR INSERT WITH CHECK (
     auth.uid() IS NOT NULL
-    AND NOT EXISTS (
-      SELECT 1 FROM auth.users WHERE id = auth.uid() AND is_anonymous = true
-    )
+    AND auth.jwt() ->> 'is_anonymous' != 'true'
   );
 
 CREATE POLICY "Allow delete own likes" ON image_likes
@@ -161,6 +159,34 @@ BEGIN
   RETURN json_build_object('liked', NOT v_exists, 'like_count', v_count);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+## category_bookmarks 테이블
+
+```sql
+CREATE TABLE IF NOT EXISTS category_bookmarks (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id),
+  category_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, category_name)
+);
+
+ALTER TABLE category_bookmarks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow read own bookmarks" ON category_bookmarks
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Allow insert for authenticated" ON category_bookmarks
+  FOR INSERT WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND auth.jwt() ->> 'is_anonymous' != 'true'
+  );
+
+CREATE POLICY "Allow delete own bookmarks" ON category_bookmarks
+  FOR DELETE USING (auth.uid() = user_id);
+
+CREATE INDEX idx_category_bookmarks_user_id ON category_bookmarks(user_id);
 ```
 
 ## 마이그레이션
