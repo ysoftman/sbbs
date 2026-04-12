@@ -13,6 +13,7 @@ let currentDir = "";
 let currentOffset = 0;
 let isLoadingMore = false;
 let allImagesLoaded = false;
+let latestPool = [];
 
 const buildMetaMap = (files) => {
   const metaMap = {};
@@ -26,6 +27,7 @@ async function loadImg(path, scrollTarget) {
   currentDir = path;
   currentOffset = 0;
   allImagesLoaded = true;
+  latestPool = [];
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML =
     '<div class="loading-indicator">' +
@@ -56,19 +58,34 @@ async function loadMoreImages() {
   if (isLoadingMore || allImagesLoaded) return;
   isLoadingMore = true;
 
-  const imgFiles = await getImageList(currentDir, currentOffset, IMG_PAGE_SIZE + 1);
-  const hasMore = imgFiles.length > IMG_PAGE_SIZE;
-  const filesToLoad = hasMore ? imgFiles.slice(0, IMG_PAGE_SIZE) : imgFiles;
-  allImagesLoaded = !hasMore;
-  currentOffset += filesToLoad.length;
+  try {
+    if (loadedDir === "__latest__" && latestPool.length > 0) {
+      // 최신순 모드: 풀에서 다음 페이지 가져오기
+      const next = latestPool.slice(currentOffset, currentOffset + IMG_PAGE_SIZE);
+      currentOffset += next.length;
+      allImagesLoaded = currentOffset >= latestPool.length;
+      if (next.length > 0) {
+        const imgNames = next.map((f) => f.name);
+        const metaMap = buildMetaMap(next);
+        await loadImages("images", imgNames, metaMap, true);
+      }
+    } else {
+      const imgFiles = await getImageList(currentDir, currentOffset, IMG_PAGE_SIZE + 1);
+      const hasMore = imgFiles.length > IMG_PAGE_SIZE;
+      const filesToLoad = hasMore ? imgFiles.slice(0, IMG_PAGE_SIZE) : imgFiles;
+      allImagesLoaded = !hasMore;
+      currentOffset += filesToLoad.length;
 
-  if (filesToLoad.length > 0) {
-    const imgNames = filesToLoad.map((f) => f.name);
-    const metaMap = buildMetaMap(filesToLoad);
-    await loadImages("images", imgNames, metaMap, true);
+      if (filesToLoad.length > 0) {
+        const imgNames = filesToLoad.map((f) => f.name);
+        const metaMap = buildMetaMap(filesToLoad);
+        await loadImages("images", imgNames, metaMap, true);
+      }
+    }
+  } finally {
+    isLoadingMore = false;
+    updateSentinel();
   }
-  isLoadingMore = false;
-  updateSentinel();
 }
 
 // 스크롤 감지용 sentinel
@@ -139,6 +156,8 @@ const updateActiveDir = (dir) => {
     if (!btn) continue;
     btn.className = d === dir ? "nes-btn is-success" : "nes-btn is-primary";
   }
+  document.getElementById("btn_latest").className =
+    dir === "__latest__" ? "nes-btn is-success" : "nes-btn is-primary";
   const myLikesBtn = document.getElementById("btn_my_likes");
   if (!myLikesBtn.disabled) {
     myLikesBtn.className = dir === "__my_likes__" ? "nes-btn is-success" : "nes-btn is-error";
@@ -163,13 +182,51 @@ const loadDirFromHash = (info, force = false) => {
   return true;
 };
 
+// 최신 이미지 로드 (전체 카테고리 통합, 최신순)
+const loadLatest = async () => {
+  updateActiveDir("__latest__");
+  loadedDir = "__latest__";
+  currentOffset = 0;
+
+  const imagesEl = document.getElementById("images");
+  imagesEl.innerHTML =
+    '<div class="loading-indicator">' +
+    '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
+    " loading" +
+    "</div>";
+
+  // 모든 카테고리에서 이미지 목록을 가져와서 최신순 정렬
+  const allFiles = [];
+  for (const dir of imgDirs) {
+    const files = await getImageList(dir, 0, 1000);
+    allFiles.push(...files);
+  }
+  allFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (allFiles.length === 0) {
+    imagesEl.innerHTML = '<p class="empty-state">No images found</p>';
+    allImagesLoaded = true;
+    updateSentinel();
+    return;
+  }
+
+  latestPool = allFiles;
+  const first = latestPool.slice(0, IMG_PAGE_SIZE);
+  currentOffset = first.length;
+  allImagesLoaded = latestPool.length <= IMG_PAGE_SIZE;
+  const imgNames = first.map((f) => f.name);
+  const metaMap = buildMetaMap(first);
+
+  await loadImages("images", imgNames, metaMap);
+  updateSentinel();
+};
+
+document.getElementById("btn_latest").addEventListener("click", loadLatest);
+
 const hashInfo = parseHash();
 if (!loadDirFromHash(hashInfo, true)) {
-  if (imgDirs.length > 0) {
-    loadedDir = imgDirs[0];
-    updateActiveDir(imgDirs[0]);
-    loadImg(imgDirs[0]);
-  }
+  // 기본 홈은 최신 이미지 표시
+  loadLatest();
 }
 
 // hash 변경 시 카테고리 또는 이미지로 이동
