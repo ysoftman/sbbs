@@ -139,7 +139,7 @@ export const deleteFile = async (filePath) => {
     return false;
   }
   // admin 또는 본인 업로드 파일인지 확인
-  const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", user.id).single();
+  const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
   if (!adminRow) {
     const { data: uploadRow } = await supabase.from("image_info").select("user_id").eq("file_path", filePath).single();
     if (!uploadRow || uploadRow.user_id !== user.id) {

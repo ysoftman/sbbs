@@ -14,6 +14,7 @@ let currentOffset = 0;
 let isLoadingMore = false;
 let allImagesLoaded = false;
 let latestPool = [];
+let loadedDir = "";
 
 const buildMetaMap = (files) => {
   const metaMap = {};
@@ -147,8 +148,6 @@ for (const dir of imgDirs) {
 }
 
 getViewCnt("ysoftman", "viewcnt");
-
-let loadedDir = "";
 
 const updateActiveDir = (dir) => {
   for (const d of imgDirs) {

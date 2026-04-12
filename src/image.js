@@ -328,7 +328,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
   let isAdmin = false;
   if (currentUser) {
     if (cachedAdminStatus === null) {
-      const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", currentUser.id).single();
+      const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", currentUser.id).maybeSingle();
       cachedAdminStatus = !!adminRow;
     }
     isAdmin = cachedAdminStatus;
