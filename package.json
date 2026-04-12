@@ -8,14 +8,14 @@
     "@dicebear/core": "^9.4.2",
     "@fontsource/press-start-2p": "^5.2.7",
     "@phosphor-icons/web": "^2.1.2",
-    "@supabase/supabase-js": "^2.49.0",
+    "@supabase/supabase-js": "^2.103.0",
     "galmuri": "^2.40.3",
     "nes.css": "^2.3.0",
-    "sass": "^1.97.2"
+    "sass": "^1.99.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
-    "vite": "^6.3.5"
+    "@biomejs/biome": "^2.4.11",
+    "vite": "^8.0.8"
   },
   "description": "simple bbs",
   "scripts": {
