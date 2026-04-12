@@ -4,6 +4,7 @@ import { STORAGE_BUCKET, deleteFile, getImageDirs, getMeta, moveFile } from "./s
 import {
   MAX_MSG_BYTES,
   escapeHtml,
+  formatCount,
   formatDate,
   formatFileSize,
   getByteLength,
@@ -73,7 +74,7 @@ const showMovePicker = (currentDir, onSelect) => {
     const bookmarkedHtml =
       bookmarked.length > 0
         ? bookmarked
-            .map((dir) => `<button class="nes-btn is-primary move-dir-btn" data-dir="${dir}">📌 ${dir}</button>`)
+            .map((dir) => `<button class="nes-btn is-primary move-dir-btn" data-dir="${dir}"><i class="ph-fill ph-push-pin"></i>${dir}</button>`)
             .join(" ")
         : '<span class="nes-text is-disabled">no bookmarks</span>';
 
@@ -166,7 +167,7 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
     `<span class="img-like" id="like_${msgId}">` +
     `<i class="ph-fill ${isLiked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart" ` +
     `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
-    `<span class="like-count">${likeCount || ""}</span></span>`;
+    `<span class="like-count">${likeCount ? formatCount(likeCount) : ""}</span></span>`;
   const moveHtml = `<span class="img-file-move" id="file_move_${msgId}" style="display:none"></span>`;
   const deleteHtml = `<span class="img-file-delete" id="file_del_${msgId}" style="display:none"></span>`;
   if (isImage) {
@@ -285,7 +286,7 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
         }
         heartEl.dataset.liked = data.liked;
         heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
-        likeEl.querySelector(".like-count").textContent = data.like_count || "";
+        likeEl.querySelector(".like-count").textContent = data.like_count ? formatCount(data.like_count) : "";
       });
     }
   }

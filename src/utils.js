@@ -4,6 +4,13 @@ import { createAvatar } from "@dicebear/core";
 // 파일명을 HTML id로 사용할 수 있도록 변환
 export const toSafeId = (name) => name.replaceAll(/[^a-zA-Z0-9]/g, "_");
 
+export const formatCount = (n) => {
+  if (n == null) return "0";
+  if (n < 1000) return `${n}`;
+  if (n < 1000000) return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}K`;
+  return `${(n / 1000000).toFixed(1)}M`;
+};
+
 export const formatFileSize = (bytes) => {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes}B`;

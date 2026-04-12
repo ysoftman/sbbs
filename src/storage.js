@@ -1,5 +1,5 @@
 import { supabase } from "./common.js";
-import { formatFileSize, showAlert } from "./utils.js";
+import { formatCount, formatFileSize, showAlert } from "./utils.js";
 
 export const STORAGE_BUCKET = "images";
 
@@ -79,14 +79,14 @@ export const getViewCnt = async (docName, htmlId) => {
     // rpc 실패시 직접 조회 시도
     const { data: row } = await supabase.from("index").select("view_cnt").eq("name", docName).single();
     if (row) {
-      document.getElementById(htmlId).innerHTML = `${row.view_cnt}`;
+      document.getElementById(htmlId).innerHTML = formatCount(row.view_cnt);
     } else {
       await setViewDoc(docName);
       document.getElementById(htmlId).innerHTML = "1";
     }
     return;
   }
-  document.getElementById(htmlId).innerHTML = `${data}`;
+  document.getElementById(htmlId).innerHTML = formatCount(data);
 };
 
 // 파일 이동 (storage move + DB 경로 업데이트, admin 전용)

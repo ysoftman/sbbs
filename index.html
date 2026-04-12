@@ -27,27 +27,27 @@
           <a href="index.html" class="navbar-home">sbbs</a>
           <span class="navbar-search">
             <input type="text" class="nes-input is-dark" id="search_input" placeholder="search..." />
-            <button type="button" class="nes-btn is-primary" id="btn_search">Q</button>
+            <button type="button" class="nes-btn is-primary" id="btn_search"><i class="ph-fill ph-magnifying-glass"></i></button>
           </span>
           <span class="navbar-stats">
             <span class="navbar-views">views: <span class="nes-text is-success" id="viewcnt"></span></span>
             <span class="navbar-views">images: <span class="nes-text is-success" id="imgcnt"></span></span>
           </span>
           <span class="navbar-login">
-            <button type="button" class="nes-btn" id="btn_theme" title="toggle theme">☀</button>
+            <button type="button" class="nes-btn" id="btn_theme" title="toggle theme"><i class="ph-fill ph-sun" id="theme_icon"></i></button>
             <button type="button" class="nes-btn is-primary" id="login_anonymous">anon</button>
             <button type="button" class="nes-btn is-primary" id="login_google">
-              <i class="nes-icon google is-small"></i> login
+              <i class="ph-fill ph-google-logo"></i> login
             </button>
             <button type="button" class="nes-btn is-purple" id="btn_version">ver</button>
           </span>
         </div>
       </nav>
       <div id="img_buttons_row">
-        <button type="button" class="nes-btn is-disabled needs-google" id="btn_my_likes">♥ my likes</button>
-        <button type="button" class="nes-btn is-primary" id="btn_latest">↑ latest</button>
+        <button type="button" class="nes-btn is-disabled needs-google" id="btn_my_likes"><i class="ph-fill ph-heart"></i> my likes</button>
+        <button type="button" class="nes-btn is-primary" id="btn_latest"><i class="ph-fill ph-clock"></i> latest</button>
         <span id="load_img_buttons"></span>
-        <button type="button" class="nes-btn is-disabled needs-google" id="btn_bookmark_manage">+</button>
+        <button type="button" class="nes-btn is-disabled needs-google" id="btn_bookmark_manage"><i class="ph-fill ph-plus"></i></button>
         <button type="button" class="nes-btn is-disabled needs-login" id="btn_upload">upload</button>
         <input type="file" id="file_input" style="display: none" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.mp4" />
       </div>

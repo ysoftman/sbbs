@@ -7,7 +7,7 @@ import "@phosphor-icons/web/fill";
 import { supabase } from "./common.js";
 import { loadImages } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
-import { showAlert, showConfirm } from "./utils.js";
+import { formatCount, showAlert, showConfirm } from "./utils.js";
 
 const IMG_PAGE_SIZE = 2;
 let currentDir = "";
@@ -143,7 +143,8 @@ document.getElementById("btn_version").addEventListener("click", () => {
 const themeBtn = document.getElementById("btn_theme");
 const applyTheme = (light) => {
   document.documentElement.classList.toggle("light", light);
-  themeBtn.textContent = light ? "☾" : "☀";
+  const icon = document.getElementById("theme_icon");
+  icon.className = light ? "ph-fill ph-moon" : "ph-fill ph-sun";
   localStorage.setItem("sbbs-theme", light ? "light" : "dark");
 };
 applyTheme(localStorage.getItem("sbbs-theme") === "light");
@@ -163,7 +164,7 @@ supabase
   .from("image_info")
   .select("id", { count: "exact", head: true })
   .then(({ count }) => {
-    document.getElementById("imgcnt").textContent = count ?? 0;
+    document.getElementById("imgcnt").textContent = formatCount(count);
   });
 
 // 북마크된 카테고리 버튼 렌더링
@@ -175,7 +176,7 @@ const renderCategoryButtons = () => {
   container.innerHTML = "";
   for (const dir of imgDirs) {
     if (!userBookmarks.has(dir)) continue;
-    const item = `<a class="nes-btn is-primary bookmark-cat" id="load_${dir}" href="#${encodeURIComponent(dir)}">📌 ${dir}</a>`;
+    const item = `<a class="nes-btn is-primary bookmark-cat" id="load_${dir}" href="#${encodeURIComponent(dir)}"><i class="ph-fill ph-push-pin"></i>${dir}</a>`;
     container.insertAdjacentHTML("beforeend", item);
   }
 };
@@ -236,7 +237,7 @@ const showBookmarkPicker = (userId) => {
       ? bookmarked
           .map(
             (dir) =>
-              `<button class="nes-btn is-success bm-toggle-btn" data-dir="${dir}">📌 ${dir}</button>`,
+              `<button class="nes-btn is-success bm-toggle-btn" data-dir="${dir}"><i class="ph-fill ph-push-pin"></i>${dir}</button>`,
           )
           .join(" ")
       : '<span class="nes-text is-disabled">no bookmarks</span>';
