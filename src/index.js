@@ -392,6 +392,8 @@ const showUploadDirPicker = (dirs) => {
     '<br><button class="nes-btn is-error upload-dir-cancel">cancel</button>' +
     "</div>";
   document.body.appendChild(picker);
+  picker.tabIndex = -1;
+  picker.focus();
 
   picker.querySelector(".upload-dir-cancel").addEventListener("click", () => picker.remove());
   picker.addEventListener("click", (e) => {
