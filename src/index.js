@@ -226,6 +226,70 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   updateSentinel();
 });
 
+// 검색 기능 (파일명 + 메시지 내용)
+const doSearch = async () => {
+  const query = document.getElementById("search_input").value.trim();
+  if (!query) return;
+
+  updateActiveDir("__search__");
+  loadedDir = "__search__";
+  allImagesLoaded = true;
+  currentOffset = 0;
+
+  const imagesEl = document.getElementById("images");
+  imagesEl.innerHTML =
+    '<div class="loading-indicator">' +
+    '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
+    " searching" +
+    "</div>";
+
+  // 파일명 검색
+  const { data: fileMatches } = await supabase
+    .from("image_info")
+    .select("file_path")
+    .ilike("file_path", `%${query}%`)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  // 메시지 내용 검색
+  const { data: msgMatches } = await supabase
+    .from("image_messages")
+    .select("image_name")
+    .ilike("message", `%${query}%`)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  // 결과 합치기 (중복 제거, 파일명 검색 우선)
+  const seen = new Set();
+  const imgNames = [];
+  for (const row of fileMatches || []) {
+    if (!seen.has(row.file_path)) {
+      seen.add(row.file_path);
+      imgNames.push(row.file_path);
+    }
+  }
+  for (const row of msgMatches || []) {
+    if (!seen.has(row.image_name)) {
+      seen.add(row.image_name);
+      imgNames.push(row.image_name);
+    }
+  }
+
+  if (imgNames.length === 0) {
+    imagesEl.innerHTML = `<p class="empty-state">No results for "${query}"</p>`;
+    updateSentinel();
+    return;
+  }
+
+  await loadImages("images", imgNames, {});
+  updateSentinel();
+};
+
+document.getElementById("btn_search").addEventListener("click", doSearch);
+document.getElementById("search_input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") doSearch();
+});
+
 // 업로드 카테고리 선택 팝업
 const showUploadDirPicker = (dirs) => {
   const existing = document.getElementById("upload-dir-picker");
