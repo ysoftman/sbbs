@@ -68,9 +68,16 @@ const loginGoogle = async () => {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  // 이미 구글 로그인된 상태면 로그아웃
   if (user?.email) {
     await logout();
     return;
+  }
+  // anonymous 상태에서 signInWithOAuth 를 호출하면 anonymous 세션이 남아있어
+  // OAuth 완료 후에도 anonymous 가 유지되므로, 먼저 signOut 으로 세션을 비운다.
+  // (reload 없이 signOut 해야 이어서 OAuth 리다이렉트가 실행된다.)
+  if (user?.is_anonymous) {
+    await supabase.auth.signOut();
   }
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",
