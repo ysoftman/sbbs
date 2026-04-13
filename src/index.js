@@ -587,6 +587,158 @@ document.getElementById("btn_upload").addEventListener("click", () => {
   showUploadDirPicker(imgDirs);
 });
 
+// 키보드 단축키
+const SHORTCUTS_HELP = [
+  ["j", "next image"],
+  ["k", "previous image"],
+  ["g", "scroll to top"],
+  ["G", "scroll to bottom"],
+  ["l", "toggle like (nearest image)"],
+  ["/", "focus search"],
+  ["t", "toggle theme"],
+  ["?", "show this help"],
+  ["Esc", "close dialog/overlay"],
+];
+
+const showShortcutsHelp = () => {
+  const existing = document.getElementById("shortcuts-help");
+  if (existing) {
+    existing.remove();
+    return;
+  }
+  const overlay = document.createElement("div");
+  overlay.id = "shortcuts-help";
+  overlay.className = "dialog-overlay";
+  const rows = SHORTCUTS_HELP.map(
+    ([k, desc]) => `<div class="sc-row"><kbd class="sc-key">${k}</kbd><span class="sc-desc">${desc}</span></div>`,
+  ).join("");
+  overlay.innerHTML =
+    '<div class="dialog-inner nes-container is-dark">' +
+    "<p>keyboard shortcuts</p>" +
+    `<div class="sc-list">${rows}</div>` +
+    '<div class="dialog-buttons"><button class="nes-btn is-primary sc-close">close</button></div>' +
+    "</div>";
+  document.body.appendChild(overlay);
+  overlay.tabIndex = -1;
+  overlay.focus();
+  const close = () => overlay.remove();
+  overlay.querySelector(".sc-close").addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
+};
+
+// viewport 중앙에 가장 가까운 이미지 컨테이너
+const findNearestContainer = () => {
+  const containers = document.querySelectorAll("#images .nes-container");
+  if (containers.length === 0) return null;
+  const viewportCenter = window.innerHeight / 2;
+  let best = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const c of containers) {
+    const rect = c.getBoundingClientRect();
+    const dist = Math.abs(rect.top + rect.height / 2 - viewportCenter);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = c;
+    }
+  }
+  return best;
+};
+
+const scrollToContainer = (el) => {
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+};
+
+const scrollToSibling = (direction) => {
+  const containers = Array.from(document.querySelectorAll("#images .nes-container"));
+  if (containers.length === 0) return;
+  const current = findNearestContainer();
+  const idx = containers.indexOf(current);
+  const nextIdx = Math.max(0, Math.min(containers.length - 1, idx + direction));
+  scrollToContainer(containers[nextIdx]);
+};
+
+const isTypingInField = () => {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (el.isContentEditable) return true;
+  return false;
+};
+
+const hasOpenOverlay = () =>
+  document.querySelector(".img-overlay, .dialog-overlay, .upload-dir-picker") !== null;
+
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (isTypingInField()) return;
+  // overlay 가 열려 있으면 overlay 자체 keydown 에 맡김 (Esc 등)
+  if (hasOpenOverlay()) return;
+
+  switch (e.key) {
+    case "j":
+      e.preventDefault();
+      scrollToSibling(1);
+      break;
+    case "k":
+      e.preventDefault();
+      scrollToSibling(-1);
+      break;
+    case "g":
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      break;
+    case "G":
+      e.preventDefault();
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      break;
+    case "l": {
+      e.preventDefault();
+      const c = findNearestContainer();
+      const heart = c?.querySelector(".like-heart.clickable");
+      if (heart) heart.click();
+      break;
+    }
+    case "/":
+      e.preventDefault();
+      document.getElementById("search_input")?.focus();
+      break;
+    case "t":
+      e.preventDefault();
+      document.getElementById("btn_theme")?.click();
+      break;
+    case "?":
+      e.preventDefault();
+      showShortcutsHelp();
+      break;
+  }
+});
+
+// scroll to top 버튼: 일정 스크롤 이상일 때만 표시
+const scrollTopBtn = document.getElementById("btn_scroll_top");
+if (scrollTopBtn) {
+  scrollTopBtn.hidden = false;
+  const SCROLL_THRESHOLD = 400;
+  const updateScrollTopBtn = () => {
+    if (window.scrollY > SCROLL_THRESHOLD) {
+      scrollTopBtn.classList.add("is-visible");
+    } else {
+      scrollTopBtn.classList.remove("is-visible");
+    }
+  };
+  window.addEventListener("scroll", updateScrollTopBtn, { passive: true });
+  scrollTopBtn.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  updateScrollTopBtn();
+}
+
 document.getElementById("file_input").addEventListener("change", async (e) => {
   const files = e.target.files;
   if (!files || files.length === 0) return;

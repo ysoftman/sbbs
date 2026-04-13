@@ -227,6 +227,12 @@ img.thumbnail:hover {
   color: var(--img-dimension-color);
 }
 
+.img-overlay-copy {
+  font-size: 10px;
+  padding: 4px 10px;
+  min-height: auto;
+}
+
 .img-overlay img {
   max-width: 100%;
   max-height: calc(95vh - 50px);
@@ -459,6 +465,68 @@ video {
   top: 0;
   z-index: 100;
   background: var(--body-bg);
+}
+
+.sc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+  text-align: left;
+}
+
+.sc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.sc-key {
+  min-width: 40px;
+  padding: 2px 8px;
+  background: var(--color-bg-deep);
+  color: var(--color-gold);
+  border: 2px solid var(--color-border);
+  border-radius: 2px;
+  font-family: "Press Start 2P", cursive;
+  font-size: 10px;
+  text-align: center;
+}
+
+.sc-desc {
+  color: var(--color-text-primary);
+}
+
+#btn_scroll_top {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 90;
+  padding: 8px 12px;
+  min-height: auto;
+  font-size: 16px;
+  opacity: 0;
+  transition: opacity 0.2s ease-in;
+  pointer-events: none;
+}
+
+#btn_scroll_top.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#btn_scroll_top[hidden] {
+  display: none;
+}
+
+@media screen and (max-width: 600px) {
+  #btn_scroll_top {
+    right: 8px;
+    bottom: 8px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
 }
 
 #img_buttons_row {

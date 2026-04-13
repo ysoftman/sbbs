@@ -1,6 +1,7 @@
 import { supabase } from "./common.js";
 import { loadMessages, saveMessage } from "./message.js";
 import { STORAGE_BUCKET, deleteFile, getImageDirs, getMeta, moveFile } from "./storage.js";
+import { supabaseUrl } from "./supabase_config.js";
 import {
   MAX_MSG_BYTES,
   escapeHtml,
@@ -21,6 +22,46 @@ supabase.auth.onAuthStateChange(() => {
   cachedAdminStatus = null;
 });
 
+// 공유용 링크 생성: og-preview Edge Function 이 있으면 크롤러가 OG 메타를 읽을 수 있도록 그 URL 을,
+// 없으면 SPA 해시 딥링크를 복사한다. Edge Function 은 사용자를 SPA 로 자동 리다이렉트한다.
+const buildShareLink = (name) => {
+  const base = supabaseUrl();
+  if (base) {
+    return `${base}/functions/v1/og-preview?p=${encodeURIComponent(name)}`;
+  }
+  return `${window.location.origin}${window.location.pathname}#${encodeURIComponent(name)}`;
+};
+
+// 공유 링크 클립보드 복사
+const copyDeepLink = async (name, btn) => {
+  const link = buildShareLink(name);
+  try {
+    await navigator.clipboard.writeText(link);
+  } catch {
+    // 비밀 컨텍스트 아닐 때 fallback
+    const ta = document.createElement("textarea");
+    ta.value = link;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+    } catch (err) {
+      console.warn("copy failed:", err);
+    }
+    ta.remove();
+  }
+  if (!btn) return;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<i class="ph-fill ph-check"></i> copied';
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.innerHTML = original;
+    btn.disabled = false;
+  }, 1500);
+};
+
 // 이미지 오버레이 표시 (파일 경로 + 이미지 사이즈)
 const showImageOverlay = (url, name) => {
   const overlay = document.createElement("div");
@@ -33,6 +74,8 @@ const showImageOverlay = (url, name) => {
     `<div class="img-overlay-info">` +
     `<span class="img-overlay-path">${escapeHtml(name)}</span>` +
     `<span class="img-overlay-size" id="overlay_size_${toSafeId(name)}"></span>` +
+    `<button class="nes-btn is-primary img-overlay-copy" title="copy link" aria-label="copy link">` +
+    `<i class="ph-fill ph-link"></i> copy link</button>` +
     `</div>` +
     `<img src="${url}">` +
     `</div>`;
@@ -41,6 +84,11 @@ const showImageOverlay = (url, name) => {
   overlay.focus();
   overlay.addEventListener("keydown", (e) => {
     if (e.key === "Escape") overlay.remove();
+  });
+  const copyBtn = overlay.querySelector(".img-overlay-copy");
+  copyBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyDeepLink(name, copyBtn);
   });
   getMeta(url, (err, img) => {
     if (err || !img) return;
