@@ -189,13 +189,16 @@ export const uploadFile = async (file) => {
   const userName = user.is_anonymous
     ? "Anonymous"
     : user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown";
-  const { error: metaError } = await supabase.from("image_info").insert({
-    file_path: filePath,
-    user_name: userName,
-    user_id: user.id,
-  });
+  const { error: metaError } = await supabase.from("image_info").upsert(
+    {
+      file_path: filePath,
+      user_name: userName,
+      user_id: user.id,
+    },
+    { onConflict: "file_path" },
+  );
   if (metaError) {
-    console.warn("image_info insert error:", metaError);
+    console.warn("image_info upsert error:", metaError);
   }
   return true;
 };

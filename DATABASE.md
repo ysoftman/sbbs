@@ -65,7 +65,7 @@ CREATE POLICY "Allow delete own messages" ON image_messages
 ```sql
 CREATE TABLE IF NOT EXISTS image_info (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  file_path TEXT NOT NULL,
+  file_path TEXT NOT NULL UNIQUE,
   user_name TEXT NOT NULL DEFAULT '',
   user_id UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now()
@@ -207,4 +207,30 @@ CREATE POLICY "Allow write for authenticated" ON image_messages
 
 CREATE POLICY "Allow delete own messages" ON image_messages
   FOR DELETE USING (auth.uid() = user_id);
+```
+
+### image_info.file_path UNIQUE 제약 추가
+
+중복 데이터가 있을 경우 먼저 정리한 뒤 제약을 추가한다.
+
+```sql
+-- 1. 중복 확인
+SELECT file_path, COUNT(*) AS cnt
+FROM image_info
+GROUP BY file_path
+HAVING COUNT(*) > 1
+ORDER BY cnt DESC;
+
+-- 2. 각 file_path 그룹에서 가장 오래된 1건만 남기고 삭제
+WITH ranked AS (
+  SELECT id,
+         ROW_NUMBER() OVER (PARTITION BY file_path ORDER BY created_at ASC, id ASC) AS rn
+  FROM image_info
+)
+DELETE FROM image_info
+WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
+
+-- 3. UNIQUE 제약 추가
+ALTER TABLE image_info
+  ADD CONSTRAINT image_info_file_path_unique UNIQUE (file_path);
 ```
