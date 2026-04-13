@@ -35,13 +35,15 @@ const buildSpaUrl = (path: string): string => {
   return `${base}#${encodeURIComponent(path)}`;
 };
 
-const renderHtml = (path: string): string => {
+const renderHtml = (path: string, selfUrl: string): string => {
   const title = path.split("/").pop() ?? path;
   const imageUrl = buildPublicUrl(path);
   const spaUrl = buildSpaUrl(path);
   const isVideo = path.toLowerCase().endsWith(".mp4");
   const ogType = isVideo ? "video.other" : "website";
 
+  // og:url 은 이 함수 URL 자체로 둬서 크롤러가 canonical mismatch 로 리다이렉트를 따라가지 않게 한다.
+  // meta refresh 는 일부 크롤러가 따라가면서 SPA 의 기본 OG 를 읽어버리므로 사용하지 않고, JS 로만 리다이렉트한다.
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -52,15 +54,16 @@ const renderHtml = (path: string): string => {
 <meta property="og:type" content="${ogType}">
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(path)}">
-<meta property="og:url" content="${escapeHtml(spaUrl)}">
+<meta property="og:url" content="${escapeHtml(selfUrl)}">
 <meta property="og:image" content="${escapeHtml(imageUrl)}">
-${isVideo ? `<meta property="og:video" content="${escapeHtml(imageUrl)}">` : ""}
+<meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}">
+<meta property="og:site_name" content="sbbs">
+${isVideo ? `<meta property="og:video" content="${escapeHtml(imageUrl)}">\n<meta property="og:video:secure_url" content="${escapeHtml(imageUrl)}">\n<meta property="og:video:type" content="video/mp4">` : ""}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escapeHtml(title)}">
 <meta name="twitter:description" content="${escapeHtml(path)}">
 <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
-<meta http-equiv="refresh" content="0; url=${escapeHtml(spaUrl)}">
-<link rel="canonical" href="${escapeHtml(spaUrl)}">
+<link rel="canonical" href="${escapeHtml(selfUrl)}">
 </head>
 <body>
 <script>window.location.replace(${JSON.stringify(spaUrl)});</script>
@@ -82,7 +85,13 @@ Deno.serve((req: Request) => {
   if (!SITE_URL) {
     return new Response("SITE_URL env not configured", { status: 500 });
   }
-  return new Response(renderHtml(path), {
+  // url.origin 은 내부 프록시 주소(http)라 외부에서 접근 가능한 URL 을 직접 구성한다.
+  const selfUrl = `${SUPABASE_URL}/functions/v1/og-preview?p=${encodeURIComponent(path)}`;
+
+  // UA 분기 없이 모든 요청에 OG 메타태그 HTML 을 반환한다.
+  // 실제 사용자는 JS 로 SPA 로 리다이렉트되고, 크롤러는 OG 태그를 읽는다.
+  // UA 분기를 쓰면 예외적인 크롤러 UA (kakao Daumoa 등) 가 OG 를 못 받는 경우가 있다.
+  return new Response(renderHtml(path, selfUrl), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
