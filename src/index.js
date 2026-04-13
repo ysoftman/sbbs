@@ -16,6 +16,8 @@ let isLoadingMore = false;
 let allImagesLoaded = false;
 let latestPool = [];
 let loadedDir = "";
+// loadImg/loadLatest 가 호출될 때마다 증가. 진행 중인 loadMoreImages 가 stale 인지 식별한다.
+let loadGeneration = 0;
 
 const buildMetaMap = (files) => {
   const metaMap = {};
@@ -26,18 +28,21 @@ const buildMetaMap = (files) => {
 };
 
 async function loadImg(path, scrollTarget) {
+  loadGeneration++;
+  const gen = loadGeneration;
   currentDir = path;
   currentOffset = 0;
+  // 로딩 중 loadMoreImages 가 발화하지 않도록 true
   allImagesLoaded = true;
   latestPool = [];
   const imagesEl = document.getElementById("images");
-  imagesEl.innerHTML =
-    '<div class="loading-indicator">' +
-    '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
-    " loading" +
-    "</div>";
+  imagesEl.innerHTML = "";
+  // sentinel 을 로딩 인디케이터로 사용 (중앙 정렬, 단일 표시)
+  showSentinelLoading();
 
   const imgFiles = await getImageList(path, 0, IMG_PAGE_SIZE + 1);
+  // 그 사이에 다른 화면 전환이 일어났다면 결과 폐기
+  if (gen !== loadGeneration) return;
   const hasMore = imgFiles.length > IMG_PAGE_SIZE;
   const filesToLoad = hasMore ? imgFiles.slice(0, IMG_PAGE_SIZE) : imgFiles;
   allImagesLoaded = !hasMore;
@@ -46,6 +51,7 @@ async function loadImg(path, scrollTarget) {
   const imgNames = filesToLoad.map((f) => f.name);
   const metaMap = buildMetaMap(filesToLoad);
   await loadImages("images", imgNames, metaMap);
+  if (gen !== loadGeneration) return;
   updateSentinel();
   if (scrollTarget) {
     const targetId = `${scrollTarget}_img`;
@@ -59,6 +65,7 @@ async function loadImg(path, scrollTarget) {
 async function loadMoreImages() {
   if (isLoadingMore || allImagesLoaded) return;
   isLoadingMore = true;
+  const gen = loadGeneration;
 
   try {
     if (loadedDir === "__latest__" && latestPool.length > 0) {
@@ -69,10 +76,14 @@ async function loadMoreImages() {
       if (next.length > 0) {
         const imgNames = next.map((f) => f.name);
         const metaMap = buildMetaMap(next);
+        if (gen !== loadGeneration) return;
         await loadImages("images", imgNames, metaMap, true);
+        if (gen !== loadGeneration) return;
       }
     } else {
       const imgFiles = await getImageList(currentDir, currentOffset, IMG_PAGE_SIZE + 1);
+      // fetch 사이에 화면 전환됐으면 폐기 (이전 카테고리 결과를 새 화면에 append 하는 것 방지)
+      if (gen !== loadGeneration) return;
       const hasMore = imgFiles.length > IMG_PAGE_SIZE;
       const filesToLoad = hasMore ? imgFiles.slice(0, IMG_PAGE_SIZE) : imgFiles;
       allImagesLoaded = !hasMore;
@@ -82,11 +93,12 @@ async function loadMoreImages() {
         const imgNames = filesToLoad.map((f) => f.name);
         const metaMap = buildMetaMap(filesToLoad);
         await loadImages("images", imgNames, metaMap, true);
+        if (gen !== loadGeneration) return;
       }
     }
   } finally {
     isLoadingMore = false;
-    updateSentinel();
+    if (gen === loadGeneration) updateSentinel();
   }
 }
 
@@ -95,17 +107,25 @@ const sentinel = document.createElement("div");
 sentinel.id = "scroll-sentinel";
 document.getElementById("images").after(sentinel);
 
+const sentinelLoadingHtml =
+  '<div class="loading-indicator">' +
+  '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
+  " loading" +
+  "</div>";
+
+// 화면 전환 시 즉시 sentinel 에 중앙 정렬된 로딩 인디케이터 표시 (#images 는 비움)
+const showSentinelLoading = () => {
+  sentinel.style.display = "";
+  sentinel.innerHTML = sentinelLoadingHtml;
+};
+
 const updateSentinel = () => {
   if (allImagesLoaded) {
     sentinel.style.display = "none";
     sentinel.innerHTML = "";
   } else {
     sentinel.style.display = "";
-    sentinel.innerHTML =
-      '<div class="loading-indicator">' +
-      '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
-      " loading" +
-      "</div>";
+    sentinel.innerHTML = sentinelLoadingHtml;
     // 이미지가 적어 sentinel이 이미 viewport 안에 있으면
     // IntersectionObserver가 재발화하지 않으므로 재등록하여 강제 평가
     scrollObserver.unobserve(sentinel);
@@ -350,22 +370,26 @@ const loadDirFromHash = (info, force = false) => {
 
 // 최신 이미지 로드 (전체 카테고리 통합, 최신순)
 const loadLatest = async () => {
+  loadGeneration++;
+  const gen = loadGeneration;
   history.replaceState(null, "", window.location.pathname);
   updateActiveDir("__latest__");
   loadedDir = "__latest__";
   currentOffset = 0;
+  latestPool = [];
+  // 로딩 중 loadMoreImages 가 발화하지 않도록 true
+  allImagesLoaded = true;
 
   const imagesEl = document.getElementById("images");
-  imagesEl.innerHTML =
-    '<div class="loading-indicator">' +
-    '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
-    " loading" +
-    "</div>";
+  imagesEl.innerHTML = "";
+  // sentinel 을 로딩 인디케이터로 사용 (중앙 정렬, 단일 표시)
+  showSentinelLoading();
 
   // 모든 카테고리에서 이미지 목록을 가져와서 최신순 정렬
   const allFiles = [];
   for (const dir of imgDirs) {
     const files = await getImageList(dir, 0, 1000);
+    if (gen !== loadGeneration) return;
     allFiles.push(...files);
   }
   allFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -385,6 +409,7 @@ const loadLatest = async () => {
   const metaMap = buildMetaMap(first);
 
   await loadImages("images", imgNames, metaMap);
+  if (gen !== loadGeneration) return;
   updateSentinel();
 };
 
