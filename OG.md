@@ -23,7 +23,11 @@ SPA 해시 딥링크(`#category/filename`)는 크롤러(Slack, Twitter, Discord,
 # Supabase CLI 설치 (최초 1회)
 brew install supabase/tap/supabase
 
-# 프로젝트 연결 (최초 1회)
+# Supabase 계정 로그인 (최초 1회) - 브라우저가 열린다
+# `supabase login` 대신 [personal access token](https://supabase.com/dashboard/account/tokens) 을 발급해서 `export SUPABASE_ACCESS_TOKEN="sbp_..."` 로 환경 변수로 지정하는 방식도 가능하다.
+supabase login
+
+# 프로젝트 연결 (최초 1회) - DB password 물어보면 그냥 Enter
 supabase link --project-ref <project-id>
 
 # Edge Function 배포
@@ -36,9 +40,8 @@ supabase functions deploy og-preview --no-verify-jwt
 
 Supabase Dashboard > Edge Functions > og-preview > Secrets 에 다음을 설정:
 
-- `SITE_URL`: 실제 SPA 주소. 슬래시로 끝나야 한다.
-  - 운영: `https://ysoftman.github.io/sbbs/`
-  - 로컬 테스트: `http://localhost:5173/`
+- `SITE_URL`: 실제 SPA 주소. 슬래시로 끝나야 한다. 예: `https://ysoftman.github.io/sbbs/`
+  - 한 개만 설정 가능. og-preview 는 외부 공유용이므로 production URL 만 넣으면 된다.
 - `STORAGE_BUCKET`: (선택) 기본값 `images`
 
 `SUPABASE_URL` 은 런타임에 자동 주입된다.
