@@ -35,6 +35,10 @@ const buildSpaUrl = (path: string): string => {
   return `${base}#${encodeURIComponent(path)}`;
 };
 
+// 대표적인 OG/소셜 크롤러 user-agent 패턴
+const CRAWLER_UA =
+  /facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|Discordbot|TelegramBot|WhatsApp|SkypeUriPreview|kakaotalk-scrap|Daumoa|Googlebot|bingbot|Applebot|Embedly|redditbot|iframely|Pinterest|vkShare|Line|MattermostBot|Mastodon|Bytespider|PetalBot/i;
+
 const renderHtml = (path: string, selfUrl: string): string => {
   const title = path.split("/").pop() ?? path;
   const imageUrl = buildPublicUrl(path);
@@ -87,16 +91,27 @@ Deno.serve((req: Request) => {
   }
   // url.origin 은 내부 프록시 주소(http)라 외부에서 접근 가능한 URL 을 직접 구성한다.
   const selfUrl = `${SUPABASE_URL}/functions/v1/og-preview?p=${encodeURIComponent(path)}`;
+  const ua = req.headers.get("user-agent") ?? "";
+  const isCrawler = CRAWLER_UA.test(ua);
 
-  // UA 분기 없이 모든 요청에 OG 메타태그 HTML 을 반환한다.
-  // 실제 사용자는 JS 로 SPA 로 리다이렉트되고, 크롤러는 OG 태그를 읽는다.
-  // UA 분기를 쓰면 예외적인 크롤러 UA (kakao Daumoa 등) 가 OG 를 못 받는 경우가 있다.
+  // 실제 사용자는 HTTP 302 로 즉시 SPA 로 리다이렉트 (JS 안 깔려 있거나 인앱 브라우저에서도 동작).
+  // 크롤러는 OG 메타태그가 포함된 HTML 을 받는다.
+  if (!isCrawler) {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        location: buildSpaUrl(path),
+        vary: "user-agent",
+      },
+    });
+  }
   return new Response(renderHtml(path, selfUrl), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
       // 크롤러/CDN 캐싱: 이미지 메타데이터는 거의 변하지 않음
       "cache-control": "public, max-age=3600",
+      vary: "user-agent",
     },
   });
 });
