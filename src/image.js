@@ -24,9 +24,13 @@ supabase.auth.onAuthStateChange(() => {
 
 // 공유용 링크 생성: og-preview Edge Function 이 있으면 크롤러가 OG 메타를 읽을 수 있도록 그 URL 을,
 // 없으면 SPA 해시 딥링크를 복사한다. Edge Function 은 사용자를 SPA 로 자동 리다이렉트한다.
+// 단, localhost 개발 환경에서는 og-preview 가 production SITE_URL 로 리다이렉트하므로
+// 로컬 테스트용으로 현재 origin 의 해시 링크를 사용한다.
 const buildShareLink = (name) => {
+  const host = window.location.hostname;
+  const isLocal = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
   const base = supabaseUrl();
-  if (base) {
+  if (base && !isLocal) {
     return `${base}/functions/v1/og-preview?p=${encodeURIComponent(name)}`;
   }
   return `${window.location.origin}${window.location.pathname}#${encodeURIComponent(name)}`;
