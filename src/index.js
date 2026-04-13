@@ -675,6 +675,8 @@ const isTypingInField = () => {
 const hasOpenOverlay = () =>
   document.querySelector(".img-overlay, .dialog-overlay, .upload-dir-picker") !== null;
 
+document.getElementById("btn_help")?.addEventListener("click", showShortcutsHelp);
+
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (isTypingInField()) return;
