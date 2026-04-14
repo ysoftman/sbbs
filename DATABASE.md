@@ -32,35 +32,9 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
-## image_messages 테이블
-
-```sql
-CREATE TABLE IF NOT EXISTS image_messages (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  image_name TEXT NOT NULL,
-  message TEXT NOT NULL CHECK (octet_length(message) <= 10000),
-  user_name TEXT NOT NULL DEFAULT '',
-  user_id UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-ALTER TABLE image_messages ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow read" ON image_messages FOR SELECT USING (true);
-
-CREATE POLICY "Allow write for authenticated" ON image_messages
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
-
-CREATE POLICY "Allow update for admin" ON image_messages
-  FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid())
-  );
-
-CREATE POLICY "Allow delete own messages" ON image_messages
-  FOR DELETE USING (auth.uid() = user_id);
-```
-
 ## image_info 테이블
+
+`image_messages`, `image_likes` 가 `file_path` 를 FK 로 참조하므로 먼저 생성한다.
 
 ```sql
 CREATE TABLE IF NOT EXISTS image_info (
@@ -90,6 +64,36 @@ CREATE POLICY "Allow delete" ON image_info
   );
 ```
 
+## image_messages 테이블
+
+`image_name` 은 `image_info.file_path` 를 참조하며, 이미지 삭제 시 CASCADE 로 함께 삭제된다.
+
+```sql
+CREATE TABLE IF NOT EXISTS image_messages (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  image_name TEXT NOT NULL REFERENCES image_info(file_path) ON DELETE CASCADE,
+  message TEXT NOT NULL CHECK (octet_length(message) <= 10000),
+  user_name TEXT NOT NULL DEFAULT '',
+  user_id UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE image_messages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow read" ON image_messages FOR SELECT USING (true);
+
+CREATE POLICY "Allow write for authenticated" ON image_messages
+  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Allow update for admin" ON image_messages
+  FOR UPDATE USING (
+    EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid())
+  );
+
+CREATE POLICY "Allow delete own messages" ON image_messages
+  FOR DELETE USING (auth.uid() = user_id);
+```
+
 ## admins 테이블
 
 ```sql
@@ -115,7 +119,7 @@ CREATE POLICY "Allow read for authenticated" ON admins
 ```sql
 CREATE TABLE IF NOT EXISTS image_likes (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  image_name TEXT NOT NULL,
+  image_name TEXT NOT NULL REFERENCES image_info(file_path) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(image_name, user_id)
@@ -234,3 +238,40 @@ WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
 ALTER TABLE image_info
   ADD CONSTRAINT image_info_file_path_unique UNIQUE (file_path);
 ```
+
+### image_messages / image_likes 에 FK CASCADE 추가
+
+`image_info` 에 대응되는 row 없이 남은 고아 데이터를 정리한 뒤 FK 를 추가한다.
+FK 가 있으면 `image_info` 삭제 시 연관 레코드가 자동 삭제되어 검색 결과에 삭제된 이미지가 잡히지 않는다.
+
+```sql
+-- 1. 고아 데이터 확인
+SELECT COUNT(*) AS orphan_messages
+FROM image_messages
+WHERE image_name NOT IN (SELECT file_path FROM image_info);
+
+SELECT COUNT(*) AS orphan_likes
+FROM image_likes
+WHERE image_name NOT IN (SELECT file_path FROM image_info);
+
+-- 2. 고아 데이터 삭제
+DELETE FROM image_messages
+WHERE image_name NOT IN (SELECT file_path FROM image_info);
+
+DELETE FROM image_likes
+WHERE image_name NOT IN (SELECT file_path FROM image_info);
+
+-- 3. FK + ON DELETE CASCADE 추가
+ALTER TABLE image_messages
+  ADD CONSTRAINT image_messages_image_name_fkey
+  FOREIGN KEY (image_name) REFERENCES image_info(file_path)
+  ON DELETE CASCADE;
+
+ALTER TABLE image_likes
+  ADD CONSTRAINT image_likes_image_name_fkey
+  FOREIGN KEY (image_name) REFERENCES image_info(file_path)
+  ON DELETE CASCADE;
+```
+
+> 주의: Supabase Storage 에서 직접 삭제된 파일(Dashboard 경유)로 인한 `image_info` 고아 row 는
+> 이 FK 로는 해결되지 않는다. 이 경우 별도 청소 스크립트(앱에서 Storage list 와 DB 대조)가 필요하다.

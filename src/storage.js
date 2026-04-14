@@ -152,9 +152,8 @@ export const deleteFile = async (filePath) => {
     await showAlert(`Delete error: ${error.message}`);
     return false;
   }
+  // image_messages / image_likes 는 image_info FK CASCADE 로 자동 삭제된다
   await supabase.from("image_info").delete().eq("file_path", filePath);
-  await supabase.from("image_messages").delete().eq("image_name", filePath);
-  await supabase.from("image_likes").delete().eq("image_name", filePath);
   return true;
 };
 
