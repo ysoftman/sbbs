@@ -1,14 +1,14 @@
 import { supabase } from "./common.js";
 import { loadMessages, saveMessage } from "./message.js";
-import { STORAGE_BUCKET, deleteFile, getImageDirs, getMeta, moveFile } from "./storage.js";
+import { deleteFile, getImageDirs, getMeta, moveFile, STORAGE_BUCKET } from "./storage.js";
 import { supabaseUrl } from "./supabase_config.js";
 import {
-  MAX_MSG_BYTES,
   escapeHtml,
   formatCount,
   formatDate,
   formatFileSize,
   getByteLength,
+  MAX_MSG_BYTES,
   makeDicebear,
   maxHeightUpdaters,
   showAlert,
@@ -126,7 +126,10 @@ const showMovePicker = (currentDir, onSelect) => {
     const bookmarkedHtml =
       bookmarked.length > 0
         ? bookmarked
-            .map((dir) => `<button class="nes-btn is-primary move-dir-btn" data-dir="${dir}"><i class="ph-fill ph-push-pin"></i>${dir}</button>`)
+            .map(
+              (dir) =>
+                `<button class="nes-btn is-primary move-dir-btn" data-dir="${dir}"><i class="ph-fill ph-push-pin"></i>${dir}</button>`,
+            )
             .join(" ")
         : '<span class="nes-text is-disabled">no bookmarks</span>';
 
@@ -184,6 +187,74 @@ const showMovePicker = (currentDir, onSelect) => {
       }
     });
   });
+};
+
+// 그리드 모드용 간략 HTML 생성
+const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet) => {
+  const isImage = !name.endsWith("mp4");
+  const msgId = toSafeId(name);
+  const likeCount = likeCountMap[name] || 0;
+  const isLiked = userLikeSet.has(name);
+  const shortName = name.includes("/") ? name.split("/").pop() : name;
+
+  const mediaHtml = isImage
+    ? `<img class="grid-thumb" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`
+    : `<video class="grid-thumb" muted preload="metadata"><source type="video/mp4" src="${publicUrl}"></video>`;
+
+  return (
+    `<div class="grid-card" data-name="${escapeHtml(name)}" id="grid_${msgId}">` +
+    `<div class="grid-card-media">${mediaHtml}</div>` +
+    `<div class="grid-card-info">` +
+    `<a class="grid-card-name" href="#${encodeURIComponent(name)}" title="${escapeHtml(name)}">${escapeHtml(shortName)}</a>` +
+    `<span class="grid-card-like" id="like_${msgId}">` +
+    `<i class="ph-fill ${isLiked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart" ` +
+    `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
+    `${likeCount ? `<span class="like-count">${formatCount(likeCount)}</span>` : ""}` +
+    `</span>` +
+    `</div></div>`
+  );
+};
+
+// 그리드 모드 이벤트 핸들러 (썸네일 클릭 → 오버레이, 좋아요)
+const setupGridHandlers = (name, currentUser) => {
+  const msgId = toSafeId(name);
+  const card = document.getElementById(`grid_${msgId}`);
+  if (!card) return;
+  const isImage = !name.endsWith("mp4");
+  if (isImage) {
+    const thumb = card.querySelector(".grid-thumb");
+    if (thumb) {
+      thumb.addEventListener("click", () => {
+        showImageOverlay(thumb.dataset.url, thumb.dataset.name);
+      });
+    }
+  }
+  // 좋아요 핸들러
+  const likeEl = document.getElementById(`like_${msgId}`);
+  const heartEl = likeEl?.querySelector(".like-heart");
+  if (!heartEl) return;
+  if (!currentUser || currentUser.is_anonymous) {
+    heartEl.style.cursor = "pointer";
+    heartEl.addEventListener("click", () => showAlert("Google login required"));
+  } else {
+    heartEl.classList.add("clickable");
+    heartEl.removeAttribute("title");
+    heartEl.addEventListener("click", async () => {
+      const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
+      if (error) {
+        console.warn("toggle_like error:", error);
+        return;
+      }
+      heartEl.dataset.liked = data.liked;
+      heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
+      const countEl = likeEl.querySelector(".like-count");
+      if (countEl) {
+        countEl.textContent = data.like_count ? formatCount(data.like_count) : "";
+      } else if (data.like_count) {
+        likeEl.insertAdjacentHTML("beforeend", `<span class="like-count">${formatCount(data.like_count)}</span>`);
+      }
+    });
+  }
 };
 
 // 이미지/비디오 HTML 생성
@@ -382,20 +453,9 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
   }
 };
 
-export const loadImages = async (htmlId, imageNames, metaMap = {}, append = false) => {
+export const loadImages = async (htmlId, imageNames, metaMap = {}, append = false, viewMode = "list") => {
   if (!append) document.getElementById(htmlId).innerHTML = "";
-  const uploaderMap = {};
-  if (imageNames.length > 0) {
-    const { data: uploadData } = await supabase
-      .from("image_info")
-      .select("file_path, user_name, user_id")
-      .in("file_path", imageNames);
-    if (uploadData) {
-      for (const row of uploadData) {
-        uploaderMap[row.file_path] = { user_name: row.user_name, user_id: row.user_id };
-      }
-    }
-  }
+
   // 로그인 상태 확인 (admin 여부는 캐싱)
   const {
     data: { user: currentUser },
@@ -426,8 +486,38 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
   }
 
   const publicUrlMap = {};
+
+  if (viewMode === "grid") {
+    // 그리드 모드: 간략 카드, 댓글/업로더 정보 스킵
+    for (const name of imageNames) {
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+      publicUrlMap[name] = publicUrl;
+      const item = buildGridItemHtml(name, publicUrl, likeCountMap, userLikeSet);
+      document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
+    }
+    for (const name of imageNames) {
+      setupGridHandlers(name, currentUser);
+    }
+    return;
+  }
+
+  // 리스트 모드: 기존 동작
+  const uploaderMap = {};
+  if (imageNames.length > 0) {
+    const { data: uploadData } = await supabase
+      .from("image_info")
+      .select("file_path, user_name, user_id")
+      .in("file_path", imageNames);
+    if (uploadData) {
+      for (const row of uploadData) {
+        uploaderMap[row.file_path] = { user_name: row.user_name, user_id: row.user_id };
+      }
+    }
+  }
+
   for (const name of imageNames) {
-    // public URL을 즉시 생성하여 img/video 태그를 바로 포함
     const {
       data: { publicUrl },
     } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
@@ -438,7 +528,11 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
   let isAdmin = false;
   if (currentUser) {
     if (cachedAdminStatus === null) {
-      const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", currentUser.id).maybeSingle();
+      const { data: adminRow } = await supabase
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", currentUser.id)
+        .maybeSingle();
       cachedAdminStatus = !!adminRow;
     }
     isAdmin = cachedAdminStatus;

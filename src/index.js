@@ -9,7 +9,11 @@ import { loadImages } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
 import { formatCount, showAlert, showConfirm } from "./utils.js";
 
-const IMG_PAGE_SIZE = 2;
+const LIST_PAGE_SIZE = 2;
+const GRID_PAGE_SIZE = 12;
+let viewMode = localStorage.getItem("sbbs-view-mode") || "list";
+const getPageSize = () => (viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE);
+
 let currentDir = "";
 let currentOffset = 0;
 let isLoadingMore = false;
@@ -40,24 +44,30 @@ async function loadImg(path, scrollTarget) {
   // sentinel 을 로딩 인디케이터로 사용 (중앙 정렬, 단일 표시)
   showSentinelLoading();
 
-  const imgFiles = await getImageList(path, 0, IMG_PAGE_SIZE + 1);
+  const pageSize = getPageSize();
+  const imgFiles = await getImageList(path, 0, pageSize + 1);
   // 그 사이에 다른 화면 전환이 일어났다면 결과 폐기
   if (gen !== loadGeneration) return;
-  const hasMore = imgFiles.length > IMG_PAGE_SIZE;
-  const filesToLoad = hasMore ? imgFiles.slice(0, IMG_PAGE_SIZE) : imgFiles;
+  const hasMore = imgFiles.length > pageSize;
+  const filesToLoad = hasMore ? imgFiles.slice(0, pageSize) : imgFiles;
   allImagesLoaded = !hasMore;
   currentOffset = filesToLoad.length;
 
   const imgNames = filesToLoad.map((f) => f.name);
   const metaMap = buildMetaMap(filesToLoad);
-  await loadImages("images", imgNames, metaMap);
+  await loadImages("images", imgNames, metaMap, false, viewMode);
   if (gen !== loadGeneration) return;
   updateSentinel();
   if (scrollTarget) {
-    const targetId = `${scrollTarget}_img`;
-    const el = document.getElementById(targetId);
-    if (el) {
-      el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (viewMode === "grid") {
+      const gridEl = document.getElementById(`grid_${scrollTarget.replaceAll(/[^a-zA-Z0-9]/g, "_")}`);
+      if (gridEl) gridEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+      const targetId = `${scrollTarget}_img`;
+      const el = document.getElementById(targetId);
+      if (el) {
+        el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
   }
 }
@@ -68,31 +78,32 @@ async function loadMoreImages() {
   const gen = loadGeneration;
 
   try {
+    const pageSize = getPageSize();
     if (loadedDir === "__latest__" && latestPool.length > 0) {
       // 최신순 모드: 풀에서 다음 페이지 가져오기
-      const next = latestPool.slice(currentOffset, currentOffset + IMG_PAGE_SIZE);
+      const next = latestPool.slice(currentOffset, currentOffset + pageSize);
       currentOffset += next.length;
       allImagesLoaded = currentOffset >= latestPool.length;
       if (next.length > 0) {
         const imgNames = next.map((f) => f.name);
         const metaMap = buildMetaMap(next);
         if (gen !== loadGeneration) return;
-        await loadImages("images", imgNames, metaMap, true);
+        await loadImages("images", imgNames, metaMap, true, viewMode);
         if (gen !== loadGeneration) return;
       }
     } else {
-      const imgFiles = await getImageList(currentDir, currentOffset, IMG_PAGE_SIZE + 1);
+      const imgFiles = await getImageList(currentDir, currentOffset, pageSize + 1);
       // fetch 사이에 화면 전환됐으면 폐기 (이전 카테고리 결과를 새 화면에 append 하는 것 방지)
       if (gen !== loadGeneration) return;
-      const hasMore = imgFiles.length > IMG_PAGE_SIZE;
-      const filesToLoad = hasMore ? imgFiles.slice(0, IMG_PAGE_SIZE) : imgFiles;
+      const hasMore = imgFiles.length > pageSize;
+      const filesToLoad = hasMore ? imgFiles.slice(0, pageSize) : imgFiles;
       allImagesLoaded = !hasMore;
       currentOffset += filesToLoad.length;
 
       if (filesToLoad.length > 0) {
         const imgNames = filesToLoad.map((f) => f.name);
         const metaMap = buildMetaMap(filesToLoad);
-        await loadImages("images", imgNames, metaMap, true);
+        await loadImages("images", imgNames, metaMap, true, viewMode);
         if (gen !== loadGeneration) return;
       }
     }
@@ -172,6 +183,33 @@ themeBtn.addEventListener("click", () => {
   applyTheme(!document.documentElement.classList.contains("light"));
 });
 
+// 그리드/리스트 뷰 토글
+const applyViewMode = (mode) => {
+  viewMode = mode;
+  document.getElementById("images").classList.toggle("grid-mode", mode === "grid");
+  const icon = document.getElementById("view_toggle_icon");
+  icon.className = mode === "grid" ? "ph-fill ph-list" : "ph-fill ph-grid-four";
+  localStorage.setItem("sbbs-view-mode", mode);
+};
+applyViewMode(viewMode);
+
+const reloadCurrentView = () => {
+  if (loadedDir === "__latest__") {
+    loadLatest();
+  } else if (loadedDir === "__my_likes__") {
+    document.getElementById("btn_my_likes").click();
+  } else if (loadedDir === "__search__") {
+    doSearch();
+  } else {
+    loadDirFromHash(parseHash(), true);
+  }
+};
+
+document.getElementById("btn_view_toggle").addEventListener("click", () => {
+  applyViewMode(viewMode === "list" ? "grid" : "list");
+  reloadCurrentView();
+});
+
 const imgDirs = await getImageDirs("");
 if (imgDirs.length === 0) {
   document.getElementById("images").innerHTML = '<p class="empty-state">No categories found</p>';
@@ -229,9 +267,7 @@ const toggleBookmark = async (userId, category) => {
       await showAlert(`Max ${MAX_BOOKMARKS} bookmarks`);
       return;
     }
-    const { error } = await supabase
-      .from("category_bookmarks")
-      .insert({ user_id: userId, category_name: category });
+    const { error } = await supabase.from("category_bookmarks").insert({ user_id: userId, category_name: category });
     if (error) {
       console.warn("insert bookmark error:", error);
       await showAlert(`Bookmark save error: ${error.message}`);
@@ -253,14 +289,15 @@ const showBookmarkPicker = (userId) => {
 
   const renderPickerContent = () => {
     const bookmarked = imgDirs.filter((d) => userBookmarks.has(d));
-    const bookmarkedHtml = bookmarked.length > 0
-      ? bookmarked
-          .map(
-            (dir) =>
-              `<button class="nes-btn is-success bm-toggle-btn" data-dir="${dir}"><i class="ph-fill ph-push-pin"></i>${dir}</button>`,
-          )
-          .join(" ")
-      : '<span class="nes-text is-disabled">no bookmarks</span>';
+    const bookmarkedHtml =
+      bookmarked.length > 0
+        ? bookmarked
+            .map(
+              (dir) =>
+                `<button class="nes-btn is-success bm-toggle-btn" data-dir="${dir}"><i class="ph-fill ph-push-pin"></i>${dir}</button>`,
+            )
+            .join(" ")
+        : '<span class="nes-text is-disabled">no bookmarks</span>';
 
     return (
       '<div class="upload-dir-picker-inner nes-container is-dark">' +
@@ -402,13 +439,14 @@ const loadLatest = async () => {
   }
 
   latestPool = allFiles;
-  const first = latestPool.slice(0, IMG_PAGE_SIZE);
+  const pageSize = getPageSize();
+  const first = latestPool.slice(0, pageSize);
   currentOffset = first.length;
-  allImagesLoaded = latestPool.length <= IMG_PAGE_SIZE;
+  allImagesLoaded = latestPool.length <= pageSize;
   const imgNames = first.map((f) => f.name);
   const metaMap = buildMetaMap(first);
 
-  await loadImages("images", imgNames, metaMap);
+  await loadImages("images", imgNames, metaMap, false, viewMode);
   if (gen !== loadGeneration) return;
   updateSentinel();
 };
@@ -488,7 +526,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   }
 
   const imgNames = likes.map((l) => l.image_name);
-  await loadImages("images", imgNames, {});
+  await loadImages("images", imgNames, {}, false, viewMode);
   updateSentinel();
 });
 
@@ -548,7 +586,7 @@ const doSearch = async () => {
     return;
   }
 
-  await loadImages("images", imgNames, {});
+  await loadImages("images", imgNames, {}, false, viewMode);
   updateSentinel();
 };
 
@@ -620,6 +658,7 @@ const SHORTCUTS_HELP = [
   ["G", "scroll to bottom"],
   ["l", "toggle like (nearest image)"],
   ["/", "focus search"],
+  ["v", "toggle grid/list view"],
   ["t", "toggle theme"],
   ["?", "show this help"],
   ["Esc", "close dialog/overlay"],
@@ -657,8 +696,10 @@ const showShortcutsHelp = () => {
 };
 
 // viewport 중앙에 가장 가까운 이미지 컨테이너
+const getItemSelector = () => (viewMode === "grid" ? "#images .grid-card" : "#images .nes-container");
+
 const findNearestContainer = () => {
-  const containers = document.querySelectorAll("#images .nes-container");
+  const containers = document.querySelectorAll(getItemSelector());
   if (containers.length === 0) return null;
   const viewportCenter = window.innerHeight / 2;
   let best = null;
@@ -680,7 +721,7 @@ const scrollToContainer = (el) => {
 };
 
 const scrollToSibling = (direction) => {
-  const containers = Array.from(document.querySelectorAll("#images .nes-container"));
+  const containers = Array.from(document.querySelectorAll(getItemSelector()));
   if (containers.length === 0) return;
   const current = findNearestContainer();
   const idx = containers.indexOf(current);
@@ -697,8 +738,7 @@ const isTypingInField = () => {
   return false;
 };
 
-const hasOpenOverlay = () =>
-  document.querySelector(".img-overlay, .dialog-overlay, .upload-dir-picker") !== null;
+const hasOpenOverlay = () => document.querySelector(".img-overlay, .dialog-overlay, .upload-dir-picker") !== null;
 
 document.getElementById("btn_help")?.addEventListener("click", showShortcutsHelp);
 
@@ -735,6 +775,10 @@ document.addEventListener("keydown", (e) => {
     case "/":
       e.preventDefault();
       document.getElementById("search_input")?.focus();
+      break;
+    case "v":
+      e.preventDefault();
+      document.getElementById("btn_view_toggle")?.click();
       break;
     case "t":
       e.preventDefault();

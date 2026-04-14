@@ -244,7 +244,9 @@ img.thumbnail:hover {
 }
 
 .nes-btn.is-purple::after {
-  box-shadow: inset -4px -4px var(--color-purple-active), inset -4px -4px var(--color-purple-active);
+  box-shadow:
+    inset -4px -4px var(--color-purple-active),
+    inset -4px -4px var(--color-purple-active);
 }
 
 .nes-btn.is-purple:hover {
@@ -254,7 +256,9 @@ img.thumbnail:hover {
 }
 
 .nes-btn.is-purple:hover::after {
-  box-shadow: inset -4px -4px var(--color-purple-shadow), inset -4px -4px var(--color-purple-shadow);
+  box-shadow:
+    inset -4px -4px var(--color-purple-shadow),
+    inset -4px -4px var(--color-purple-shadow);
 }
 
 .nes-btn.is-purple:active,
@@ -298,6 +302,79 @@ img.thumbnail:hover {
 .items > * {
   margin-bottom: 1.5rem;
   animation: fadeIn 0.3s ease-in;
+}
+
+/* 그리드 모드 */
+#images.grid-mode {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+#images.grid-mode > * {
+  margin-bottom: 0;
+}
+
+.grid-card {
+  background: var(--container-bg);
+  border: 4px solid var(--color-border);
+  overflow: hidden;
+}
+
+.grid-card-media {
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-deep);
+}
+
+.grid-card-media .grid-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.grid-card-media .grid-thumb:hover {
+  opacity: 0.8;
+}
+
+.grid-card-info {
+  padding: 6px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.grid-card-name {
+  color: var(--file-name-color);
+  font-size: 10px;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.grid-card-name:hover {
+  text-decoration: underline;
+}
+
+.grid-card-like {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.grid-card-like .like-count {
+  font-size: 10px;
 }
 
 .img-content-row {
@@ -593,6 +670,11 @@ video {
     flex-wrap: wrap;
     font-size: 11px;
     gap: 6px;
+  }
+
+  #images.grid-mode {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
   }
 }
 
@@ -907,5 +989,18 @@ video {
   .dialog-inner .nes-btn {
     font-size: 10px;
     padding: 4px 8px;
+  }
+
+  #images.grid-mode {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .grid-card-name {
+    font-size: 8px;
+  }
+
+  .grid-card-info {
+    padding: 4px 6px;
   }
 }
