@@ -3,10 +3,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>sbbs</title>
-    <meta name="description" content="sbbs - a tiny retro board for sharing images">
-    <meta property="og:title" content="sbbs">
-    <meta property="og:description" content="sbbs - a tiny retro board for sharing images">
-    <meta property="og:type" content="website">
+    <meta
+      name="description"
+      content="sbbs - a tiny retro board for sharing images"
+    />
+    <meta property="og:title" content="sbbs" />
+    <meta
+      property="og:description"
+      content="sbbs - a tiny retro board for sharing images"
+    />
+    <meta property="og:type" content="website" />
   </head>
   <body>
     <style>
@@ -26,37 +32,106 @@
         <div class="container navbar-flex">
           <a href="index.html" class="navbar-home">sbbs</a>
           <span class="navbar-search">
-            <input type="text" class="nes-input is-dark" id="search_input" placeholder="search..." />
-            <button type="button" class="nes-btn is-primary" id="btn_search"><i class="ph-fill ph-magnifying-glass"></i></button>
+            <input
+              type="text"
+              class="nes-input is-dark"
+              id="search_input"
+              placeholder="search..."
+            />
+            <button type="button" class="nes-btn is-primary" id="btn_search">
+              <i class="ph-fill ph-magnifying-glass"></i>
+            </button>
           </span>
           <span class="navbar-stats">
-            <span class="navbar-views">views: <span class="nes-text is-success" id="viewcnt"></span></span>
-            <span class="navbar-views">images: <span class="nes-text is-success" id="imgcnt"></span></span>
+            <span class="navbar-views"
+              >views: <span class="nes-text is-success" id="viewcnt"></span
+            ></span>
+            <span class="navbar-views"
+              >images: <span class="nes-text is-success" id="imgcnt"></span
+            ></span>
           </span>
           <span class="navbar-login">
-            <button type="button" class="nes-btn" id="btn_view_toggle" title="toggle view (v)"><i class="ph-fill ph-grid-four" id="view_toggle_icon"></i></button>
-            <button type="button" class="nes-btn" id="btn_theme" title="toggle theme"><i class="ph-fill ph-sun" id="theme_icon"></i></button>
-            <button type="button" class="nes-btn" id="btn_help" title="keyboard shortcuts (?)" aria-label="keyboard shortcuts"><i class="ph-fill ph-question"></i></button>
-            <button type="button" class="nes-btn is-primary" id="login_anonymous">anon</button>
+            <button
+              type="button"
+              class="nes-btn"
+              id="btn_view_toggle"
+              title="toggle view (v)"
+            >
+              <i class="ph-fill ph-grid-four" id="view_toggle_icon"></i>
+            </button>
+            <button
+              type="button"
+              class="nes-btn"
+              id="btn_theme"
+              title="toggle theme"
+            >
+              <i class="ph-fill ph-sun" id="theme_icon"></i>
+            </button>
+            <button
+              type="button"
+              class="nes-btn"
+              id="btn_help"
+              title="keyboard shortcuts (?)"
+              aria-label="keyboard shortcuts"
+            >
+              <i class="ph-fill ph-question"></i>
+            </button>
+            <button
+              type="button"
+              class="nes-btn is-primary"
+              id="login_anonymous"
+            >
+              anon
+            </button>
             <button type="button" class="nes-btn is-primary" id="login_google">
               <i class="ph-fill ph-google-logo"></i> login
             </button>
-            <button type="button" class="nes-btn is-purple" id="btn_version">ver</button>
+            <button type="button" class="nes-btn is-purple" id="btn_version">
+              ver
+            </button>
           </span>
         </div>
       </nav>
       <div id="img_buttons_row">
-        <button type="button" class="nes-btn is-disabled needs-google" id="btn_my_likes"><i class="ph-fill ph-heart"></i> my likes</button>
-        <button type="button" class="nes-btn is-primary" id="btn_latest"><i class="ph-fill ph-clock"></i> latest</button>
+        <button
+          type="button"
+          class="nes-btn is-disabled needs-google"
+          id="btn_my_likes"
+        >
+          <i class="ph-fill ph-heart"></i> my likes
+        </button>
+        <button type="button" class="nes-btn is-primary" id="btn_latest">
+          <i class="ph-fill ph-clock"></i> latest
+        </button>
         <span id="load_img_buttons"></span>
-        <button type="button" class="nes-btn is-disabled needs-google" id="btn_bookmark_manage"><i class="ph-fill ph-plus"></i></button>
-        <button type="button" class="nes-btn is-disabled needs-login" id="btn_upload">upload</button>
-        <input type="file" id="file_input" style="display: none" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.mp4" />
+        <button
+          type="button"
+          class="nes-btn is-disabled needs-google"
+          id="btn_bookmark_manage"
+        >
+          <i class="ph-fill ph-plus"></i>
+        </button>
+        <button
+          type="button"
+          class="nes-btn is-disabled needs-login"
+          id="btn_upload"
+        >
+          upload
+        </button>
+        <input
+          type="file"
+          id="file_input"
+          style="display: none"
+          multiple
+          accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.mp4"
+        />
       </div>
       <div id="version_info" style="display: none">
         <div class="version-row">
           <p class="nes-balloon from-right is-dark">
-            <span class="nes-text is-primary">sbbs (simple bulletin board system) - a tiny retro board for sharing images</span
+            <span class="nes-text is-primary"
+              >sbbs (simple bulletin board system) - a tiny retro board for
+              sharing images</span
             ><br />
             <span class="nes-text is-error"
               >this page uses NES.CSS, Press Start 2P and Galmuri11 font</span
@@ -70,7 +145,14 @@
     <main class="index-body nes-text">
       <div id="images" class="items"></div>
     </main>
-    <button type="button" class="nes-btn is-primary" id="btn_scroll_top" title="scroll to top" aria-label="scroll to top" hidden>
+    <button
+      type="button"
+      class="nes-btn is-primary"
+      id="btn_scroll_top"
+      title="scroll to top"
+      aria-label="scroll to top"
+      hidden
+    >
       <i class="ph-fill ph-arrow-up"></i>
     </button>
     <script type="module" src="./src/index.js"></script>
