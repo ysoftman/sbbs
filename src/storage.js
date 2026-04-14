@@ -147,13 +147,20 @@ export const deleteFile = async (filePath) => {
       return false;
     }
   }
-  const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
-  if (error) {
-    await showAlert(`Delete error: ${error.message}`);
+  const { error: storageErr } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
+  if (storageErr) {
+    await showAlert(`Delete error: ${storageErr.message}`);
     return false;
   }
   // image_messages / image_likes 는 image_info FK CASCADE 로 자동 삭제된다
-  await supabase.from("image_info").delete().eq("file_path", filePath);
+  const { error: dbErr } = await supabase.from("image_info").delete().eq("file_path", filePath);
+  if (dbErr) {
+    await showAlert(
+      `DB delete failed, storage already removed.\n${dbErr.message}\n` +
+        "Check RLS policy on image_info.",
+    );
+    return false;
+  }
   return true;
 };
 
