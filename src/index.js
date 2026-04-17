@@ -7,7 +7,7 @@ import "@phosphor-icons/web/fill";
 import { supabase } from "./common.js";
 import { loadImages } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
-import { formatCount, showAlert, showConfirm } from "./utils.js";
+import { formatCount, loadingIndicatorHtml, showAlert, showConfirm } from "./utils.js";
 
 const LIST_PAGE_SIZE = 2;
 const GRID_PAGE_SIZE = 12;
@@ -118,11 +118,7 @@ const sentinel = document.createElement("div");
 sentinel.id = "scroll-sentinel";
 document.getElementById("images").after(sentinel);
 
-const sentinelLoadingHtml =
-  '<div class="loading-indicator">' +
-  '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
-  " loading" +
-  "</div>";
+const sentinelLoadingHtml = loadingIndicatorHtml();
 
 // 화면 전환 시 즉시 sentinel 에 중앙 정렬된 로딩 인디케이터 표시 (#images 는 비움)
 const showSentinelLoading = () => {
@@ -504,11 +500,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   currentOffset = 0;
 
   const imagesEl = document.getElementById("images");
-  imagesEl.innerHTML =
-    '<div class="loading-indicator">' +
-    '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
-    " loading" +
-    "</div>";
+  imagesEl.innerHTML = loadingIndicatorHtml();
 
   const {
     data: { user },
@@ -542,11 +534,7 @@ const doSearch = async () => {
   currentOffset = 0;
 
   const imagesEl = document.getElementById("images");
-  imagesEl.innerHTML =
-    '<div class="loading-indicator">' +
-    '<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>' +
-    " searching" +
-    "</div>";
+  imagesEl.innerHTML = loadingIndicatorHtml("searching");
 
   // 파일명 검색
   const { data: fileMatches } = await supabase

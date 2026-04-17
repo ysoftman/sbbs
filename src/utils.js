@@ -40,6 +40,9 @@ export const escapeHtml = (str) =>
 // 이미지별 textarea max-height 재계산 함수 저장 (image.js, message.js 에서 공유)
 export const maxHeightUpdaters = {};
 
+export const loadingIndicatorHtml = (label = "loading") =>
+  `<div class="loading-indicator">${label}<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
+
 // 테마 커스텀 alert
 export const showAlert = (message) => {
   return new Promise((resolve) => {
