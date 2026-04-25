@@ -1,4 +1,4 @@
-import { supabase } from "./common.js";
+import { getCurrentUser, supabase } from "./common.js";
 import { formatCount, formatFileSize, showAlert } from "./utils.js";
 
 export const STORAGE_BUCKET = "images";
@@ -131,9 +131,7 @@ export const moveFile = async (oldPath, newDir) => {
 
 // 파일 삭제 (storage + metadata, 본인 업로드만)
 export const deleteFile = async (filePath) => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) {
     await showAlert("Login required");
     return false;
@@ -179,9 +177,7 @@ export const uploadFile = async (file) => {
     await showAlert("File name must contain only ASCII characters");
     return false;
   }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user || user.is_anonymous) {
     await showAlert("Google login required");
     return false;

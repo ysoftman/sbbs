@@ -9,6 +9,17 @@ import { escapeHtml, showAlert } from "./utils.js";
 
 export const supabase = createClient(supabaseUrl(), supabasePublishableKey());
 
+// 현재 사용자 단일 소스. supabase.auth.getUser() 동시 호출이 Web Locks 경쟁을
+// 일으키므로 startup 시 한 번만 호출하고 onAuthStateChange 로 갱신한다.
+let currentUser = null;
+let currentUserReady = false;
+const currentUserPromise = supabase.auth.getUser().then(({ data }) => {
+  currentUser = data?.user ?? null;
+  currentUserReady = true;
+  return currentUser;
+});
+export const getCurrentUser = () => (currentUserReady ? Promise.resolve(currentUser) : currentUserPromise);
+
 const loginBoxID = "login_google";
 const loginAnonymousBoxID = "login_anonymous";
 
@@ -27,6 +38,8 @@ const makeLogoutBoxHTML = (userName, userId) => {
 
 // 사용자의 로그인 상태가 변경될 때마다 UI 업데이트
 supabase.auth.onAuthStateChange((_event, session) => {
+  currentUser = session?.user ?? null;
+  currentUserReady = true;
   if (session?.user) {
     const user = session.user;
     if (user.is_anonymous) {

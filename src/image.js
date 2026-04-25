@@ -1,4 +1,4 @@
-import { supabase } from "./common.js";
+import { getCurrentUser, supabase } from "./common.js";
 import { loadMessages, saveMessage } from "./message.js";
 import { deleteFile, getImageDirs, getMeta, moveFile, STORAGE_BUCKET } from "./storage.js";
 import { supabaseUrl } from "./supabase_config.js";
@@ -108,7 +108,7 @@ const showMovePicker = (currentDir, onSelect) => {
 
   Promise.all([
     getImageDirs(""),
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    getCurrentUser().then((user) => {
       if (!user || user.is_anonymous) return [];
       return supabase
         .from("category_bookmarks")
@@ -457,9 +457,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
   if (!append) document.getElementById(htmlId).innerHTML = "";
 
   // 로그인 상태 확인 (admin 여부는 캐싱)
-  const {
-    data: { user: currentUser },
-  } = await supabase.auth.getUser();
+  const currentUser = await getCurrentUser();
 
   // 좋아요 수 batch 조회
   const likeCountMap = {};

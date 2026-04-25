@@ -4,7 +4,7 @@ import "galmuri/dist/galmuri.css";
 import "nes.css/css/nes.min.css";
 import "@phosphor-icons/web/fill";
 
-import { supabase } from "./common.js";
+import { getCurrentUser, supabase } from "./common.js";
 import { loadImages } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
 import { formatCount, loadingIndicatorHtml, showAlert, showConfirm } from "./utils.js";
@@ -460,9 +460,7 @@ window.addEventListener("hashchange", () => {
   loadDirFromHash(parseHash());
 });
 
-const {
-  data: { user: currentUploadUser },
-} = await supabase.auth.getUser();
+const currentUploadUser = await getCurrentUser();
 // 비활성 버튼 클릭 시 로그인 안내 팝업
 document.getElementById("img_buttons_row").addEventListener("click", (e) => {
   const btn = e.target.closest(".needs-google");
@@ -498,9 +496,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML = loadingIndicatorHtml();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   const { data: likes } = await supabase
     .from("image_likes")
     .select("image_name")
