@@ -49,8 +49,11 @@ ALTER TABLE image_info ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow read" ON image_info FOR SELECT USING (true);
 
-CREATE POLICY "Allow insert for authenticated" ON image_info
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Allow insert for google" ON image_info
+  FOR INSERT WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND auth.jwt() ->> 'is_anonymous' != 'true'
+  );
 
 CREATE POLICY "Allow update for admin" ON image_info
   FOR UPDATE USING (

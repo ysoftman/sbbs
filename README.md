@@ -69,6 +69,13 @@ Storage > Policies > images bucket > New policy:
 - Target roles: default (all public roles)
 - Policy definition: `bucket_id = 'images'`
 
+Add a second policy to restrict uploads to Google-authenticated users (anonymous users are blocked):
+
+- Policy name: `upload image (google only)`
+- Allowed operation: check INSERT
+- Target roles: `authenticated`
+- Policy definition: `bucket_id = 'images' AND auth.jwt() ->> 'is_anonymous' != 'true'`
+
 ### Database Setup
 
 For table creation, RLS policies, and migrations, see [DATABASE.md](DATABASE.md).

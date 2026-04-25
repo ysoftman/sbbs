@@ -460,25 +460,21 @@ window.addEventListener("hashchange", () => {
   loadDirFromHash(parseHash());
 });
 
-// 업로드 버튼 (로그인 사용자만 표시)
 const {
   data: { user: currentUploadUser },
 } = await supabase.auth.getUser();
-if (currentUploadUser) {
-  const uploadBtn = document.getElementById("btn_upload");
-  uploadBtn.classList.remove("is-disabled", "needs-login");
-  uploadBtn.classList.add("is-warning");
-}
 // 비활성 버튼 클릭 시 로그인 안내 팝업
 document.getElementById("img_buttons_row").addEventListener("click", (e) => {
   const btn = e.target.closest(".needs-google");
   if (btn) showAlert("Google login required");
-  const loginBtn = e.target.closest(".needs-login");
-  if (loginBtn) showAlert("Login required");
 });
 
-// 구글 로그인 사용자: my likes + 북마크 카테고리 + 북마크 관리
+// 구글 로그인 사용자: upload + my likes + 북마크 카테고리 + 북마크 관리
 if (currentUploadUser && !currentUploadUser.is_anonymous) {
+  const uploadBtn = document.getElementById("btn_upload");
+  uploadBtn.classList.remove("is-disabled", "needs-google");
+  uploadBtn.classList.add("is-warning");
+
   const myLikesBtn = document.getElementById("btn_my_likes");
   myLikesBtn.classList.remove("is-disabled", "needs-google");
   myLikesBtn.classList.add("is-error");
@@ -634,7 +630,8 @@ const showUploadDirPicker = (dirs) => {
   });
 };
 
-document.getElementById("btn_upload").addEventListener("click", () => {
+document.getElementById("btn_upload").addEventListener("click", (e) => {
+  if (e.currentTarget.classList.contains("needs-google")) return;
   showUploadDirPicker(imgDirs);
 });
 

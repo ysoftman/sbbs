@@ -182,8 +182,8 @@ export const uploadFile = async (file) => {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) {
-    await showAlert("Login required");
+  if (!user || user.is_anonymous) {
+    await showAlert("Google login required");
     return false;
   }
   const filePath = uploadDir ? `${uploadDir}/${file.name}` : file.name;
