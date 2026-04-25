@@ -323,23 +323,20 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
         showImageOverlay(thumbEl.dataset.url, thumbEl.dataset.name);
       });
       const sid = toSafeId(name);
-      const applyMaxHeight = () => {
-        const ta = document.getElementById(`msg_${sid}`);
-        if (!ta || !thumbEl.clientHeight) return;
-        const imgH = thumbEl.clientHeight;
-        const msgList = document.getElementById(`msg_list_${sid}`);
-        const charcount = document.getElementById(`msg_charcount_${sid}`);
-        const saveBtn = document.getElementById(`msg_save_${sid}`);
-        let otherH = 0;
-        if (msgList) otherH += msgList.offsetHeight;
-        if (charcount) otherH += charcount.offsetHeight;
-        if (saveBtn) otherH += saveBtn.offsetHeight;
-        otherH += 30; // gaps, margins
-        ta.style.maxHeight = `${Math.max(imgH - otherH, 30)}px`;
+      // 메시지 영역(.img-side-msg) 높이를 이미지 높이에 맞춘다.
+      // flex column 레이아웃이라 입력 폼이 보이면 그 높이만큼 msg-list 가 자동으로 줄어든다.
+      const applyMsgListHeight = () => {
+        const sideEl = thumbEl.closest(".img-content-row")?.querySelector(".img-side-msg");
+        if (!sideEl || !thumbEl.clientHeight) return;
+        if (window.matchMedia("(max-width: 768px)").matches) {
+          sideEl.style.height = "";
+          return;
+        }
+        sideEl.style.height = `${thumbEl.clientHeight}px`;
       };
-      maxHeightUpdaters[sid] = applyMaxHeight;
-      if (thumbEl.complete) applyMaxHeight();
-      thumbEl.addEventListener("load", applyMaxHeight);
+      maxHeightUpdaters[sid] = applyMsgListHeight;
+      if (thumbEl.complete) applyMsgListHeight();
+      thumbEl.addEventListener("load", applyMsgListHeight);
     }
     getMeta(publicUrlMap[name], (err, img) => {
       if (err || !img) return;

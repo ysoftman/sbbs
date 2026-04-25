@@ -37,8 +37,13 @@ export const makeDicebear = (seed) => {
 export const escapeHtml = (str) =>
   str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-// 이미지별 textarea max-height 재계산 함수 저장 (image.js, message.js 에서 공유)
+// 이미지별 메시지 영역 높이 재계산 함수 저장 (image.js, message.js 에서 공유)
 export const maxHeightUpdaters = {};
+
+// 화면 크기 변경 시 모든 메시지 영역 높이 재계산
+window.addEventListener("resize", () => {
+  for (const fn of Object.values(maxHeightUpdaters)) fn();
+});
 
 export const loadingIndicatorHtml = (label = "loading") =>
   `<div class="loading-indicator">${label}<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
