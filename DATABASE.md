@@ -74,7 +74,7 @@ CREATE POLICY "Allow delete" ON image_info
 ```sql
 CREATE TABLE IF NOT EXISTS image_messages (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  image_name TEXT NOT NULL REFERENCES image_info(file_path) ON DELETE CASCADE,
+  image_name TEXT NOT NULL REFERENCES image_info(file_path) ON DELETE CASCADE ON UPDATE CASCADE,
   message TEXT NOT NULL CHECK (octet_length(message) <= 10000),
   user_name TEXT NOT NULL DEFAULT '',
   user_id UUID REFERENCES auth.users(id),
@@ -122,7 +122,7 @@ CREATE POLICY "Allow read for authenticated" ON admins
 ```sql
 CREATE TABLE IF NOT EXISTS image_likes (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  image_name TEXT NOT NULL REFERENCES image_info(file_path) ON DELETE CASCADE,
+  image_name TEXT NOT NULL REFERENCES image_info(file_path) ON DELETE CASCADE ON UPDATE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(image_name, user_id)
@@ -245,7 +245,7 @@ ALTER TABLE image_info
 ### image_messages / image_likes 에 FK CASCADE 추가
 
 `image_info` 에 대응되는 row 없이 남은 고아 데이터를 정리한 뒤 FK 를 추가한다.
-FK 가 있으면 `image_info` 삭제 시 연관 레코드가 자동 삭제되어 검색 결과에 삭제된 이미지가 잡히지 않는다.
+FK 가 있으면 `image_info` 삭제/경로 변경 시 연관 레코드가 자동으로 삭제/갱신된다.
 
 ```sql
 -- 1. 고아 데이터 확인
@@ -264,17 +264,36 @@ WHERE image_name NOT IN (SELECT file_path FROM image_info);
 DELETE FROM image_likes
 WHERE image_name NOT IN (SELECT file_path FROM image_info);
 
--- 3. FK + ON DELETE CASCADE 추가
+-- 3. FK + ON DELETE/UPDATE CASCADE 추가
 ALTER TABLE image_messages
   ADD CONSTRAINT image_messages_image_name_fkey
   FOREIGN KEY (image_name) REFERENCES image_info(file_path)
-  ON DELETE CASCADE;
+  ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE image_likes
   ADD CONSTRAINT image_likes_image_name_fkey
   FOREIGN KEY (image_name) REFERENCES image_info(file_path)
-  ON DELETE CASCADE;
+  ON DELETE CASCADE ON UPDATE CASCADE;
 ```
 
 > 주의: Supabase Storage 에서 직접 삭제된 파일(Dashboard 경유)로 인한 `image_info` 고아 row 는
 > 이 FK 로는 해결되지 않는다. 이 경우 별도 청소 스크립트(앱에서 Storage list 와 DB 대조)가 필요하다.
+
+### 기존 FK 에 ON UPDATE CASCADE 추가
+
+이미 `ON DELETE CASCADE` 만 걸린 환경에서 `image_info.file_path` 변경(파일 이동) 시
+FK 위반으로 UPDATE 가 차단되므로, FK 를 재생성한다.
+
+```sql
+ALTER TABLE image_messages
+  DROP CONSTRAINT image_messages_image_name_fkey,
+  ADD CONSTRAINT image_messages_image_name_fkey
+    FOREIGN KEY (image_name) REFERENCES image_info(file_path)
+    ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE image_likes
+  DROP CONSTRAINT image_likes_image_name_fkey,
+  ADD CONSTRAINT image_likes_image_name_fkey
+    FOREIGN KEY (image_name) REFERENCES image_info(file_path)
+    ON DELETE CASCADE ON UPDATE CASCADE;
+```

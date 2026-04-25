@@ -99,6 +99,7 @@ export const moveFile = async (oldPath, newDir) => {
     await showAlert(`Move error: ${error.message}`);
     return null;
   }
+  // FK ON UPDATE CASCADE 로 image_messages / image_likes 의 image_name 도 자동 갱신된다
   const { data: infoData, error: infoErr } = await supabase
     .from("image_info")
     .update({ file_path: newPath })
@@ -114,18 +115,6 @@ export const moveFile = async (oldPath, newDir) => {
     );
     return null;
   }
-  const { error: msgErr } = await supabase
-    .from("image_messages")
-    .update({ image_name: newPath })
-    .eq("image_name", oldPath);
-  if (msgErr) {
-    // image_messages 업데이트 실패 시 전체 롤백
-    await supabase.storage.from(STORAGE_BUCKET).move(newPath, oldPath);
-    await supabase.from("image_info").update({ file_path: oldPath }).eq("file_path", newPath);
-    await showAlert(`image_messages update failed, move rolled back.\n${msgErr.message}`);
-    return null;
-  }
-  await supabase.from("image_likes").update({ image_name: newPath }).eq("image_name", oldPath);
   return newPath;
 };
 
