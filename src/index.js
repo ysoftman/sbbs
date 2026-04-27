@@ -588,7 +588,7 @@ const showUploadDirPicker = (dirs) => {
     "<p>upload category</p>" +
     '<div class="new-dir-row">' +
     '<input class="nes-input is-dark new-dir-input" type="text" placeholder="category name" maxlength="50">' +
-    '<button class="nes-btn is-warning new-dir-btn">upload</button>' +
+    '<button class="nes-btn is-disabled new-dir-btn" disabled>upload</button>' +
     "</div>" +
     '<br><button class="nes-btn is-error upload-dir-cancel">cancel</button>' +
     "</div>";
@@ -605,7 +605,14 @@ const showUploadDirPicker = (dirs) => {
   });
   // 카테고리 입력 후 업로드
   const newDirInput = picker.querySelector(".new-dir-input");
-  picker.querySelector(".new-dir-btn").addEventListener("click", async () => {
+  const newDirBtn = picker.querySelector(".new-dir-btn");
+  newDirInput.addEventListener("input", () => {
+    const hasValue = newDirInput.value.trim().length > 0;
+    newDirBtn.disabled = !hasValue;
+    newDirBtn.classList.toggle("is-disabled", !hasValue);
+    newDirBtn.classList.toggle("is-warning", hasValue);
+  });
+  newDirBtn.addEventListener("click", async () => {
     const newDir = newDirInput.value.trim();
     if (!newDir) return;
     if (!/^[a-zA-Z0-9_-]+$/.test(newDir)) {
@@ -622,7 +629,7 @@ const showUploadDirPicker = (dirs) => {
     document.getElementById("file_input").click();
   });
   newDirInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") picker.querySelector(".new-dir-btn").click();
+    if (e.key === "Enter" && !newDirBtn.disabled) newDirBtn.click();
   });
 };
 
