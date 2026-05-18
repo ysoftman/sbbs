@@ -8,6 +8,7 @@ import {
   formatDate,
   formatFileSize,
   getByteLength,
+  isVideoName,
   MAX_MSG_BYTES,
   makeDicebear,
   maxHeightUpdaters,
@@ -39,8 +40,10 @@ const buildShareLink = (name) => {
 // 공유 링크 클립보드 복사
 const copyDeepLink = async (name, btn) => {
   const link = buildShareLink(name);
+  let copied = false;
   try {
     await navigator.clipboard.writeText(link);
+    copied = true;
   } catch {
     // 비밀 컨텍스트 아닐 때 fallback
     const ta = document.createElement("textarea");
@@ -50,11 +53,15 @@ const copyDeepLink = async (name, btn) => {
     document.body.appendChild(ta);
     ta.select();
     try {
-      document.execCommand("copy");
+      copied = document.execCommand("copy");
     } catch (err) {
       console.warn("copy failed:", err);
     }
     ta.remove();
+  }
+  if (!copied) {
+    await showAlert("copy failed");
+    return;
   }
   if (!btn) return;
   const original = btn.innerHTML;
@@ -128,7 +135,7 @@ const showMovePicker = (currentDir, onSelect) => {
         ? bookmarked
             .map(
               (dir) =>
-                `<button class="nes-btn is-primary move-dir-btn" data-dir="${dir}"><i class="ph-fill ph-push-pin"></i>${dir}</button>`,
+                `<button class="nes-btn is-primary move-dir-btn" data-dir="${escapeHtml(dir)}"><i class="ph-fill ph-push-pin"></i>${escapeHtml(dir)}</button>`,
             )
             .join(" ")
         : '<span class="nes-text is-disabled">no bookmarks</span>';
@@ -177,7 +184,9 @@ const showMovePicker = (currentDir, onSelect) => {
         return;
       }
       resultsEl.innerHTML = matched
-        .map((dir) => `<button class="nes-btn move-search-btn" data-dir="${dir}">${dir}</button>`)
+        .map(
+          (dir) => `<button class="nes-btn move-search-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
+        )
         .join(" ");
       for (const btn of resultsEl.querySelectorAll(".move-search-btn")) {
         btn.addEventListener("click", () => {
@@ -191,7 +200,7 @@ const showMovePicker = (currentDir, onSelect) => {
 
 // 그리드 모드용 간략 HTML 생성
 const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet) => {
-  const isImage = !name.endsWith("mp4");
+  const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
   const likeCount = likeCountMap[name] || 0;
   const isLiked = userLikeSet.has(name);
@@ -220,7 +229,7 @@ const setupGridHandlers = (name, currentUser) => {
   const msgId = toSafeId(name);
   const card = document.getElementById(`grid_${msgId}`);
   if (!card) return;
-  const isImage = !name.endsWith("mp4");
+  const isImage = !isVideoName(name);
   if (isImage) {
     const thumb = card.querySelector(".grid-thumb");
     if (thumb) {
@@ -240,18 +249,26 @@ const setupGridHandlers = (name, currentUser) => {
     heartEl.classList.add("clickable");
     heartEl.removeAttribute("title");
     heartEl.addEventListener("click", async () => {
-      const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
-      if (error) {
-        console.warn("toggle_like error:", error);
-        return;
-      }
-      heartEl.dataset.liked = data.liked;
-      heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
-      const countEl = likeEl.querySelector(".like-count");
-      if (countEl) {
-        countEl.textContent = data.like_count ? formatCount(data.like_count) : "";
-      } else if (data.like_count) {
-        likeEl.insertAdjacentHTML("beforeend", `<span class="like-count">${formatCount(data.like_count)}</span>`);
+      if (heartEl.dataset.pending === "true") return;
+      heartEl.dataset.pending = "true";
+      try {
+        const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
+        if (error || !data) {
+          console.warn("toggle_like error:", error ?? "no data returned");
+          return;
+        }
+        heartEl.dataset.liked = data.liked;
+        heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
+        const countEl = likeEl.querySelector(".like-count");
+        if (countEl) {
+          countEl.textContent = data.like_count ? formatCount(data.like_count) : "";
+        } else if (data.like_count) {
+          likeEl.insertAdjacentHTML("beforeend", `<span class="like-count">${formatCount(data.like_count)}</span>`);
+        }
+      } catch (err) {
+        console.warn("toggle_like error:", err);
+      } finally {
+        heartEl.dataset.pending = "false";
       }
     });
   }
@@ -259,7 +276,7 @@ const setupGridHandlers = (name, currentUser) => {
 
 // 이미지/비디오 HTML 생성
 const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, userLikeSet) => {
-  const isImage = !name.endsWith("mp4");
+  const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
   const msgHtml =
     `<div class="img-message" id="msg_form_${msgId}" style="display:none">` +
@@ -297,22 +314,23 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
     const mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`;
     return (
       `<div class="nes-container with-title">` +
-      `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(name)}</a> <span id="${name}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
-      `<div class="img-content-row"><div id="${name}_img">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
+      `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(name)}</a> <span id="${msgId}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
+      `<div class="img-content-row"><div class="img-media" id="${msgId}_img">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
     );
   }
-  const mediaHtml = `<video controls autoplay muted><source type="video/mp4" src="${publicUrl}"></video>`;
+  const mediaHtml = `<video controls autoplay muted playsinline><source type="video/mp4" src="${publicUrl}"></video>`;
   return (
     `<div class="nes-container with-title">` +
     `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(name)}</a> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
-    `<div class="img-content-row"><div id="${name}_video">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
+    `<div class="img-content-row"><div class="img-media" id="${msgId}_video">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
   );
 };
 
 // 이벤트 핸들러 등록 (썸네일 클릭, 삭제, 이동, 메시지 등)
 const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMap, messageLoadPromises) => {
-  const isImage = !name.endsWith("mp4");
-  const id = isImage ? `${name}_img` : `${name}_video`;
+  const isImage = !isVideoName(name);
+  const msgId = toSafeId(name);
+  const id = isImage ? `${msgId}_img` : `${msgId}_video`;
   if (document.getElementById(id) == null) {
     return;
   }
@@ -341,14 +359,13 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
     getMeta(publicUrlMap[name], (err, img) => {
       if (err || !img) return;
       const imgSize = `(${img.naturalWidth}x${img.naturalHeight})`;
-      if (document.getElementById(`${name}_img_size`) == null) {
+      if (document.getElementById(`${msgId}_img_size`) == null) {
         return;
       }
-      document.getElementById(`${name}_img_size`).innerHTML = imgSize;
+      document.getElementById(`${msgId}_img_size`).innerHTML = imgSize;
     });
   }
   // admin 전용 파일 이동 버튼
-  const msgId = toSafeId(name);
   if (isAdmin) {
     const moveEl = document.getElementById(`file_move_${msgId}`);
     if (moveEl) {
@@ -399,14 +416,27 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
       heartEl.classList.add("clickable");
       heartEl.removeAttribute("title");
       heartEl.addEventListener("click", async () => {
-        const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
-        if (error) {
-          console.warn("toggle_like error:", error);
-          return;
+        if (heartEl.dataset.pending === "true") return;
+        heartEl.dataset.pending = "true";
+        try {
+          const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
+          if (error || !data) {
+            console.warn("toggle_like error:", error ?? "no data returned");
+            return;
+          }
+          heartEl.dataset.liked = data.liked;
+          heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
+          const countEl = likeEl.querySelector(".like-count");
+          if (countEl) {
+            countEl.textContent = data.like_count ? formatCount(data.like_count) : "";
+          } else if (data.like_count) {
+            likeEl.insertAdjacentHTML("beforeend", `<span class="like-count">${formatCount(data.like_count)}</span>`);
+          }
+        } catch (err) {
+          console.warn("toggle_like error:", err);
+        } finally {
+          heartEl.dataset.pending = "false";
         }
-        heartEl.dataset.liked = data.liked;
-        heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
-        likeEl.querySelector(".like-count").textContent = data.like_count ? formatCount(data.like_count) : "";
       });
     }
   }
@@ -428,23 +458,32 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
     const saveBtn = document.getElementById(`msg_save_${msgId}`);
     if (saveBtn) {
       saveBtn.addEventListener("click", async () => {
-        const statusEl = document.getElementById(`msg_status_${msgId}`);
+        if (saveBtn.dataset.pending === "true") return;
         if (!textarea.value.trim()) return;
+        const statusEl = document.getElementById(`msg_status_${msgId}`);
         if (getByteLength(textarea.value) > MAX_MSG_BYTES) {
           statusEl.innerHTML = `<span class="nes-text is-error">${MAX_MSG_BYTES.toLocaleString()} bytes exceeded</span>`;
           return;
         }
-        const userName = currentUser.is_anonymous
-          ? "Anonymous"
-          : currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Unknown";
-        await saveMessage(name, textarea.value, userName, currentUser.id);
-        textarea.value = "";
-        charcountEl.textContent = `0/${MAX_MSG_BYTES} bytes`;
-        statusEl.innerHTML = "saved!";
-        await loadMessages(name, `msg_list_${msgId}`, currentUser.id);
-        setTimeout(() => {
-          statusEl.innerHTML = "";
-        }, 2000);
+        saveBtn.dataset.pending = "true";
+        saveBtn.disabled = true;
+        try {
+          const userName = currentUser.is_anonymous
+            ? "Anonymous"
+            : currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Unknown";
+          const saved = await saveMessage(name, textarea.value, userName, currentUser.id);
+          if (!saved) return;
+          textarea.value = "";
+          charcountEl.textContent = `0/${MAX_MSG_BYTES} bytes`;
+          statusEl.innerHTML = "saved!";
+          await loadMessages(name, `msg_list_${msgId}`, currentUser.id);
+          setTimeout(() => {
+            statusEl.innerHTML = "";
+          }, 2000);
+        } finally {
+          saveBtn.dataset.pending = "false";
+          saveBtn.disabled = false;
+        }
       });
     }
   }

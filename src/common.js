@@ -1,5 +1,3 @@
-// ysoftman
-import "./common.css"; // css, scss 중 마지막에 import 해야 올바르게 적용된다.
 import { pixelArt } from "@dicebear/collection";
 import { createAvatar } from "@dicebear/core";
 import { createClient } from "@supabase/supabase-js";

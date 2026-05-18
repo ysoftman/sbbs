@@ -17,12 +17,7 @@ const SITE_URL = Deno.env.get("SITE_URL") ?? "";
 const STORAGE_BUCKET = Deno.env.get("STORAGE_BUCKET") ?? "images";
 
 const escapeHtml = (s: string): string =>
-  s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 const buildPublicUrl = (path: string): string =>
   `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${path

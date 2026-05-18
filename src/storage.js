@@ -142,10 +142,7 @@ export const deleteFile = async (filePath) => {
   // image_messages / image_likes 는 image_info FK CASCADE 로 자동 삭제된다
   const { error: dbErr } = await supabase.from("image_info").delete().eq("file_path", filePath);
   if (dbErr) {
-    await showAlert(
-      `DB delete failed, storage already removed.\n${dbErr.message}\n` +
-        "Check RLS policy on image_info.",
-    );
+    await showAlert(`DB delete failed, storage already removed.\n${dbErr.message}\nCheck RLS policy on image_info.`);
     return false;
   }
   return true;
@@ -162,8 +159,8 @@ export const uploadFile = async (file) => {
     await showAlert(`Unsupported file type: ${file.type}\nAllowed: jpg, png, gif, webp, bmp, svg, mp4`);
     return false;
   }
-  if (!/^[\x20-\x7E]+$/.test(file.name)) {
-    await showAlert("File name must contain only ASCII characters");
+  if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
+    await showAlert("File name must contain only letters, numbers, dots, hyphens, and underscores (no spaces)");
     return false;
   }
   const user = await getCurrentUser();
@@ -190,6 +187,10 @@ export const uploadFile = async (file) => {
   );
   if (metaError) {
     console.warn("image_info upsert error:", metaError);
+    const { error: removeErr } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
+    if (removeErr) console.warn("storage rollback failed (orphan file may remain):", removeErr);
+    await showAlert(`Upload metadata error: ${metaError.message}`);
+    return false;
   }
   return true;
 };

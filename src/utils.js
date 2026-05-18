@@ -1,8 +1,13 @@
 import { pixelArt } from "@dicebear/collection";
 import { createAvatar } from "@dicebear/core";
 
-// 파일명을 HTML id로 사용할 수 있도록 변환
-export const toSafeId = (name) => name.replaceAll(/[^a-zA-Z0-9]/g, "_");
+const textEncoder = new TextEncoder();
+
+// 파일명을 DOM/CSS selector에 안전하고 충돌 없는 HTML id로 변환
+export const toSafeId = (name) =>
+  `id_${Array.from(textEncoder.encode(name), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+
+export const isVideoName = (name) => name.toLowerCase().endsWith(".mp4");
 
 export const formatCount = (n) => {
   if (n == null) return "0";
@@ -25,7 +30,6 @@ export const formatDate = (dateStr) => {
 };
 
 export const MAX_MSG_BYTES = 10000;
-const textEncoder = new TextEncoder();
 export const getByteLength = (str) => textEncoder.encode(str).length;
 
 export const makeDicebear = (seed) => {
@@ -121,6 +125,9 @@ export const showConfirm = (message) => {
     };
     yes.addEventListener("click", accept);
     overlay.querySelector(".dialog-no").addEventListener("click", cancel);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) cancel();
+    });
     overlay.addEventListener("keydown", (e) => {
       if (e.key === "Escape") cancel();
       if (e.key === "Tab") {

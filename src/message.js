@@ -6,15 +6,23 @@ const MORE_LIMIT = 5;
 
 // 이미지 메시지 저장
 export const saveMessage = async (imageName, message, userName, userId) => {
-  const { error } = await supabase.from("image_messages").insert({
-    image_name: imageName,
-    message: message,
-    user_name: userName,
-    user_id: userId,
-  });
-  if (error) {
-    console.warn("saveMessage error:", error);
-    await showAlert(`saveMessage error: ${error.message}`);
+  try {
+    const { error } = await supabase.from("image_messages").insert({
+      image_name: imageName,
+      message: message,
+      user_name: userName,
+      user_id: userId,
+    });
+    if (error) {
+      console.warn("saveMessage error:", error);
+      await showAlert(`saveMessage error: ${error.message}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("saveMessage error:", err);
+    await showAlert(`saveMessage error: ${err.message || err}`);
+    return false;
   }
 };
 

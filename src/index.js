@@ -3,11 +3,20 @@ import "@fontsource/press-start-2p";
 import "galmuri/dist/galmuri.css";
 import "nes.css/css/nes.min.css";
 import "@phosphor-icons/web/fill";
+import "./common.css";
 
 import { getCurrentUser, supabase } from "./common.js";
 import { loadImages } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
-import { formatCount, loadingIndicatorHtml, showAlert, showConfirm } from "./utils.js";
+import {
+  escapeHtml,
+  formatCount,
+  isVideoName,
+  loadingIndicatorHtml,
+  showAlert,
+  showConfirm,
+  toSafeId,
+} from "./utils.js";
 
 const LIST_PAGE_SIZE = 2;
 const GRID_PAGE_SIZE = 12;
@@ -22,6 +31,8 @@ let latestPool = [];
 let loadedDir = "";
 // loadImg/loadLatest 가 호출될 때마다 증가. 진행 중인 loadMoreImages 가 stale 인지 식별한다.
 let loadGeneration = 0;
+
+const getMediaElementId = (name) => `${toSafeId(name)}_${isVideoName(name) ? "video" : "img"}`;
 
 const buildMetaMap = (files) => {
   const metaMap = {};
@@ -60,10 +71,10 @@ async function loadImg(path, scrollTarget) {
   updateSentinel();
   if (scrollTarget) {
     if (viewMode === "grid") {
-      const gridEl = document.getElementById(`grid_${scrollTarget.replaceAll(/[^a-zA-Z0-9]/g, "_")}`);
+      const gridEl = document.getElementById(`grid_${toSafeId(scrollTarget)}`);
       if (gridEl) gridEl.scrollIntoView({ behavior: "smooth", block: "center" });
     } else {
-      const targetId = `${scrollTarget}_img`;
+      const targetId = getMediaElementId(scrollTarget);
       const el = document.getElementById(targetId);
       if (el) {
         el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -150,7 +161,13 @@ scrollObserver.observe(sentinel);
 
 // URL hash 에서 이미지 경로 파싱 (예: #dir/image.jpg → { dir: "dir", image: "dir/image.jpg" })
 const parseHash = () => {
-  const hash = decodeURIComponent(window.location.hash.slice(1));
+  let hash = "";
+  try {
+    hash = decodeURIComponent(window.location.hash.slice(1));
+  } catch (err) {
+    console.warn("invalid hash:", err);
+    return null;
+  }
   if (!hash) return null;
   const lastSlash = hash.indexOf("/");
   if (lastSlash === -1) return { dir: hash, image: null };
@@ -158,7 +175,7 @@ const parseHash = () => {
   return { dir, image: hash };
 };
 
-const version = `version: ${__LAST_VERSION_TAG__}<br>commit: ${__LAST_COMMIT_HASH__}<br>date: ${__LAST_COMMIT_DATE__}<br>message: ${__LAST_COMMIT_MESSAGE__}<br>`;
+const version = `version: ${escapeHtml(__LAST_VERSION_TAG__)}<br>commit: ${escapeHtml(__LAST_COMMIT_HASH__)}<br>date: ${escapeHtml(__LAST_COMMIT_DATE__)}<br>message: ${escapeHtml(__LAST_COMMIT_MESSAGE__)}<br>`;
 document.getElementById("version").innerHTML = version;
 
 document.getElementById("btn_version").addEventListener("click", () => {
@@ -230,7 +247,8 @@ const renderCategoryButtons = () => {
   container.innerHTML = "";
   for (const dir of imgDirs) {
     if (!userBookmarks.has(dir)) continue;
-    const item = `<a class="nes-btn is-primary bookmark-cat" id="load_${dir}" href="#${encodeURIComponent(dir)}"><i class="ph-fill ph-push-pin"></i>${dir}</a>`;
+    const safeDir = escapeHtml(dir);
+    const item = `<a class="nes-btn is-primary bookmark-cat" id="load_${toSafeId(dir)}" href="#${encodeURIComponent(dir)}"><i class="ph-fill ph-push-pin"></i>${safeDir}</a>`;
     container.insertAdjacentHTML("beforeend", item);
   }
 };
@@ -290,7 +308,7 @@ const showBookmarkPicker = (userId) => {
         ? bookmarked
             .map(
               (dir) =>
-                `<button class="nes-btn is-success bm-toggle-btn" data-dir="${dir}"><i class="ph-fill ph-push-pin"></i>${dir}</button>`,
+                `<button class="nes-btn is-success bm-toggle-btn" data-dir="${escapeHtml(dir)}"><i class="ph-fill ph-push-pin"></i>${escapeHtml(dir)}</button>`,
             )
             .join(" ")
         : '<span class="nes-text is-disabled">no bookmarks</span>';
@@ -336,7 +354,7 @@ const showBookmarkPicker = (userId) => {
       return;
     }
     resultsEl.innerHTML = matched
-      .map((dir) => `<button class="nes-btn bm-add-btn" data-dir="${dir}">${dir}</button>`)
+      .map((dir) => `<button class="nes-btn bm-add-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`)
       .join(" ");
     for (const btn of resultsEl.querySelectorAll(".bm-add-btn")) {
       btn.addEventListener("click", async () => {
@@ -372,7 +390,7 @@ const showBookmarkPicker = (userId) => {
 
 const updateActiveDir = (dir) => {
   for (const d of imgDirs) {
-    const btn = document.getElementById(`load_${d}`);
+    const btn = document.getElementById(`load_${toSafeId(d)}`);
     if (!btn) continue;
     btn.className = d === dir ? "nes-btn is-success" : "nes-btn is-primary";
   }
@@ -386,7 +404,7 @@ const updateActiveDir = (dir) => {
 const loadDirFromHash = (info, force = false) => {
   if (!info || !imgDirs.includes(info.dir)) return false;
   if (info.image) {
-    const targetId = `${info.image}_img`;
+    const targetId = getMediaElementId(info.image);
     const el = document.getElementById(targetId);
     if (el) {
       el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -487,6 +505,8 @@ if (currentUploadUser && !currentUploadUser.is_anonymous) {
 
 document.getElementById("btn_my_likes").addEventListener("click", async () => {
   if (document.getElementById("btn_my_likes").classList.contains("needs-google")) return;
+  loadGeneration++;
+  const gen = loadGeneration;
   history.replaceState(null, "", window.location.pathname);
   updateActiveDir("__my_likes__");
   loadedDir = "__my_likes__";
@@ -497,11 +517,16 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   imagesEl.innerHTML = loadingIndicatorHtml();
 
   const user = await getCurrentUser();
+  if (!user) {
+    imagesEl.innerHTML = "";
+    return;
+  }
   const { data: likes } = await supabase
     .from("image_likes")
     .select("image_name")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
+  if (gen !== loadGeneration) return;
 
   if (!likes || likes.length === 0) {
     imagesEl.innerHTML = '<p class="empty-state">No liked images</p>';
@@ -510,7 +535,9 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   }
 
   const imgNames = likes.map((l) => l.image_name);
+  if (gen !== loadGeneration) return;
   await loadImages("images", imgNames, {}, false, viewMode);
+  if (gen !== loadGeneration) return;
   updateSentinel();
 });
 
@@ -518,6 +545,8 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
 const doSearch = async () => {
   const query = document.getElementById("search_input").value.trim();
   if (!query) return;
+  loadGeneration++;
+  const gen = loadGeneration;
 
   history.replaceState(null, "", window.location.pathname);
   updateActiveDir("__search__");
@@ -543,6 +572,7 @@ const doSearch = async () => {
     .ilike("message", `%${query}%`)
     .order("created_at", { ascending: false })
     .limit(50);
+  if (gen !== loadGeneration) return;
 
   // 결과 합치기 (중복 제거, 파일명 검색 우선)
   const seen = new Set();
@@ -561,12 +591,14 @@ const doSearch = async () => {
   }
 
   if (imgNames.length === 0) {
-    imagesEl.innerHTML = `<p class="empty-state">No results for "${query}"</p>`;
+    imagesEl.innerHTML = `<p class="empty-state">No results for "${escapeHtml(query)}"</p>`;
     updateSentinel();
     return;
   }
 
+  if (gen !== loadGeneration) return;
   await loadImages("images", imgNames, {}, false, viewMode);
+  if (gen !== loadGeneration) return;
   updateSentinel();
 };
 
@@ -576,7 +608,7 @@ document.getElementById("search_input").addEventListener("keydown", (e) => {
 });
 
 // 업로드 카테고리 선택 팝업
-const showUploadDirPicker = (dirs) => {
+const showUploadDirPicker = () => {
   const existing = document.getElementById("upload-dir-picker");
   if (existing) existing.remove();
 
@@ -621,8 +653,6 @@ const showUploadDirPicker = (dirs) => {
     }
     if (imgDirs.includes(newDir)) {
       if (!(await showConfirm(`"${newDir}" already exists. Upload to this category?`))) return;
-    } else {
-      imgDirs.push(newDir);
     }
     setUploadDir(newDir);
     picker.remove();
@@ -635,7 +665,7 @@ const showUploadDirPicker = (dirs) => {
 
 document.getElementById("btn_upload").addEventListener("click", (e) => {
   if (e.currentTarget.classList.contains("needs-google")) return;
-  showUploadDirPicker(imgDirs);
+  showUploadDirPicker();
 });
 
 // 키보드 단축키
@@ -804,16 +834,26 @@ document.getElementById("file_input").addEventListener("change", async (e) => {
   const uploadBtn = document.getElementById("btn_upload");
   const originalText = uploadBtn.textContent;
   let uploaded = 0;
-  for (let i = 0; i < files.length; i++) {
-    uploadBtn.textContent = `uploading ${i + 1}/${files.length}`;
-    uploadBtn.disabled = true;
-    const success = await uploadFile(files[i]);
-    if (success) uploaded++;
+  uploadBtn.disabled = true;
+  try {
+    for (let i = 0; i < files.length; i++) {
+      uploadBtn.textContent = `uploading ${i + 1}/${files.length}`;
+      let success = false;
+      try {
+        success = await uploadFile(files[i]);
+      } catch (err) {
+        console.warn("uploadFile error:", err);
+        await showAlert(`Upload error: ${err.message || err}`);
+      }
+      if (success) uploaded++;
+    }
+    if (uploaded > 0) {
+      if (uploadDir && !imgDirs.includes(uploadDir)) imgDirs.push(uploadDir);
+      await loadImg(uploadDir || currentDir);
+    }
+  } finally {
+    uploadBtn.textContent = originalText;
+    uploadBtn.disabled = false;
+    e.target.value = "";
   }
-  uploadBtn.textContent = originalText;
-  uploadBtn.disabled = false;
-  if (uploaded > 0) {
-    await loadImg(uploadDir || currentDir);
-  }
-  e.target.value = "";
 });
