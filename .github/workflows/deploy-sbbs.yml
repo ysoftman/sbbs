@@ -25,16 +25,11 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Create supabase config
+      - name: Create .env
         run: |
-          cat << 'EOF' > src/supabase_config.js
-          export const supabaseUrl = () => {
-            return "${{ secrets.SUPABASE_URL }}";
-          };
-
-          export const supabasePublishableKey = () => {
-            return "${{ secrets.SUPABASE_PUBLISHABLE_KEY }}";
-          };
+          cat << 'EOF' > .env
+          VITE_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           EOF
 
       - name: Install dependencies
