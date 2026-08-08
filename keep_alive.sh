@@ -3,6 +3,8 @@
 # 7일 동안 실제 DB 쿼리(REST API 호출 포함)가 단 한 건도 없으면 Supabase는 이 프로젝트를 휴면 상태로 판단하고 서버(Compute 인스턴스)를 잠재워 버린다.
 # 이를 방지하고자 sbbs(Supabase 사용)를 주기적으로 요청한다.
 # 단순히 curl -fsS https://ysoftman.github.io/sbbs/ 호출은 html 만 다운로드 하기 때문에 안된다.
+# cron잡으로 등록해놓자.
+# 0 */2 * * * bash /Users/ysoftman/workspace/sbbs/keep_alive.sh
 
 # 1. 환경변수 파일 로드 및 가공
 . $HOME/workspace/sbbs/.env
