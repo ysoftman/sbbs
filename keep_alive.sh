@@ -10,9 +10,16 @@
 supabase_url=$(echo $VITE_SUPABASE_URL | tr -d '"')
 supabase_pub_key=$(echo $VITE_SUPABASE_PUBLISHABLE_KEY | tr -d '"')
 
-# 2. Supabase API 호출
+# 2. Supabase API 호출 및 로그 기록
 # /rest/v1/ 루트 엔드포인트는 secret key 를 요구해 publishable key 로는 401 이 난다.
 # 실제 테이블을 가볍게 쿼리해야 (1) 인증이 통과하고 (2) keep-alive 목적의 실제 DB 쿼리가 발생한다.
-curl -fsS -X GET "$supabase_url/rest/v1/image_info?select=id&limit=1" \
-    -H "apikey: $supabase_pub_key" \
-    -H "Authorization: Bearer $supabase_pub_key" >>$HOME/sbbs.log 2>&1
+{
+    # 시간 기록
+    # printf %( 는 bash 전용이다. zsh 에선 에러 난다. -1 현재시각, -2 셀 프로세스 시작 시간
+    # printf '%(%Y-%m-%d %H:%M:%S)T ' -1
+    date "+%Y-%m-%d %H:%M:%S " | tr -d '\n'
+    curl -fsS -X GET "$supabase_url/rest/v1/image_info?select=id&limit=1" \
+        -H "apikey: $supabase_pub_key" \
+        -H "Authorization: Bearer $supabase_pub_key" 2>&1
+    echo ""
+} >>$HOME/sbbs.log
