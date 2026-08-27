@@ -1,5 +1,5 @@
-import { pixelArt } from "@dicebear/collection";
-import { createAvatar } from "@dicebear/core";
+import { Avatar, Style } from "@dicebear/core";
+import pixelArt from "@dicebear/styles/pixel-art.json";
 
 const textEncoder = new TextEncoder();
 
@@ -32,10 +32,9 @@ export const formatDate = (dateStr) => {
 export const MAX_MSG_BYTES = 10000;
 export const getByteLength = (str) => textEncoder.encode(str).length;
 
-export const makeDicebear = (seed) => {
-  const avatar = createAvatar(pixelArt, { seed });
-  return avatar.toDataUri();
-};
+const pixelArtStyle = new Style(pixelArt);
+
+export const makeDicebear = (seed) => new Avatar(pixelArtStyle, { seed }).toDataUri();
 
 // HTML 특수문자 escape (XSS 방지)
 export const escapeHtml = (str) =>

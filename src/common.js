@@ -1,9 +1,7 @@
-import { pixelArt } from "@dicebear/collection";
-import { createAvatar } from "@dicebear/core";
 import { createClient } from "@supabase/supabase-js";
 
 import { supabasePublishableKey, supabaseUrl } from "./supabase_config.js";
-import { escapeHtml, showAlert } from "./utils.js";
+import { escapeHtml, makeDicebear, showAlert } from "./utils.js";
 
 export const supabase = createClient(supabaseUrl(), supabasePublishableKey());
 
@@ -21,10 +19,7 @@ export const getCurrentUser = () => (currentUserReady ? Promise.resolve(currentU
 const loginBoxID = "login_google";
 const loginAnonymousBoxID = "login_anonymous";
 
-const makeAvatarHTML = (seed) => {
-  const src = createAvatar(pixelArt, { seed }).toDataUri();
-  return `<img class="login-avatar" src="${src}">`;
-};
+const makeAvatarHTML = (seed) => `<img class="login-avatar" src="${makeDicebear(seed)}">`;
 
 const makeLogoutBoxHTML = (userName, userId) => {
   const avatars = userId ? makeAvatarHTML(userId) : "";
