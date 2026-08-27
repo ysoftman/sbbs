@@ -6,16 +6,16 @@
   "dependencies": {
     "@dicebear/collection": "^9.4.2",
     "@dicebear/core": "^9.4.2",
-    "@fontsource/press-start-2p": "^5.2.7",
+    "@fontsource/press-start-2p": "^5.3.0",
     "@phosphor-icons/web": "^2.1.2",
-    "@supabase/supabase-js": "^2.103.0",
+    "@supabase/supabase-js": "^2.112.4",
     "galmuri": "^2.40.3",
     "nes.css": "^2.3.0",
-    "sass": "^1.99.0"
+    "sass": "^1.103.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.11",
-    "vite": "^8.0.8"
+    "@biomejs/biome": "^2.5.10",
+    "vite": "^8.2.2"
   },
   "description": "simple bbs",
   "scripts": {
