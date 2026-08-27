@@ -168,32 +168,12 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
-## category_bookmarks 테이블
+## category_bookmarks 테이블 (제거됨)
+
+카테고리 북마크 기능 제거로 더 이상 사용하지 않는다. 기존 프로젝트에서는 아래로 정리한다.
 
 ```sql
-CREATE TABLE IF NOT EXISTS category_bookmarks (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id),
-  category_name TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, category_name)
-);
-
-ALTER TABLE category_bookmarks ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow read own bookmarks" ON category_bookmarks
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Allow insert for authenticated" ON category_bookmarks
-  FOR INSERT WITH CHECK (
-    auth.uid() IS NOT NULL
-    AND auth.jwt() ->> 'is_anonymous' != 'true'
-  );
-
-CREATE POLICY "Allow delete own bookmarks" ON category_bookmarks
-  FOR DELETE USING (auth.uid() = user_id);
-
-CREATE INDEX idx_category_bookmarks_user_id ON category_bookmarks(user_id);
+DROP TABLE IF EXISTS category_bookmarks;
 ```
 
 ## 마이그레이션

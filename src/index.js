@@ -8,15 +8,7 @@ import "./common.css";
 import { getCurrentUser, supabase } from "./common.js";
 import { loadImages } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
-import {
-  escapeHtml,
-  formatCount,
-  isVideoName,
-  loadingIndicatorHtml,
-  showAlert,
-  showConfirm,
-  toSafeId,
-} from "./utils.js";
+import { escapeHtml, formatCount, isVideoName, loadingIndicatorHtml, showAlert, toSafeId } from "./utils.js";
 
 const LIST_PAGE_SIZE = 2;
 const GRID_PAGE_SIZE = 12;
@@ -238,155 +230,59 @@ supabase
     document.getElementById("imgcnt").textContent = formatCount(count);
   });
 
-// 북마크된 카테고리 버튼 렌더링
-const MAX_BOOKMARKS = 10;
-let userBookmarks = new Set();
+// 카테고리 버튼 렌더링: 항상 전체 표시, 드래그로 순서 조정 (localStorage 저장)
+const CAT_ORDER_KEY = "sbbs-cat-order";
+
+const applySavedOrder = () => {
+  let saved = [];
+  try {
+    saved = JSON.parse(localStorage.getItem(CAT_ORDER_KEY)) || [];
+  } catch {
+    saved = [];
+  }
+  imgDirs.sort((a, b) => {
+    const ia = saved.indexOf(a);
+    const ib = saved.indexOf(b);
+    return (ia === -1 ? saved.length : ia) - (ib === -1 ? saved.length : ib);
+  });
+};
 
 const renderCategoryButtons = () => {
+  applySavedOrder();
   const container = document.getElementById("load_img_buttons");
   container.innerHTML = "";
   for (const dir of imgDirs) {
-    if (!userBookmarks.has(dir)) continue;
     const safeDir = escapeHtml(dir);
-    const item = `<a class="nes-btn is-primary bookmark-cat" id="load_${toSafeId(dir)}" href="#${encodeURIComponent(dir)}"><i class="ph-fill ph-push-pin"></i>${safeDir}</a>`;
+    const item = `<a class="nes-btn is-primary" draggable="true" data-dir="${safeDir}" id="load_${toSafeId(dir)}" href="#${encodeURIComponent(dir)}">${safeDir}</a>`;
     container.insertAdjacentHTML("beforeend", item);
   }
 };
 
-const loadUserBookmarks = async (userId) => {
-  const { data } = await supabase
-    .from("category_bookmarks")
-    .select("category_name")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true });
-  userBookmarks = new Set((data || []).map((r) => r.category_name));
-  renderCategoryButtons();
-};
+{
+  const container = document.getElementById("load_img_buttons");
+  let dragged = null;
+  container.addEventListener("dragstart", (e) => {
+    dragged = e.target.closest("a[data-dir]");
+    if (dragged) e.dataTransfer.effectAllowed = "move";
+  });
+  container.addEventListener("dragover", (e) => {
+    const over = e.target.closest("a[data-dir]");
+    if (!dragged || !over || over === dragged) return;
+    e.preventDefault();
+    const rect = over.getBoundingClientRect();
+    const before = e.clientX < rect.left + rect.width / 2;
+    container.insertBefore(dragged, before ? over : over.nextSibling);
+  });
+  container.addEventListener("dragend", () => {
+    if (!dragged) return;
+    dragged = null;
+    const order = [...container.querySelectorAll("a[data-dir]")].map((a) => a.dataset.dir);
+    localStorage.setItem(CAT_ORDER_KEY, JSON.stringify(order));
+    applySavedOrder();
+  });
+}
 
-const toggleBookmark = async (userId, category) => {
-  if (userBookmarks.has(category)) {
-    const { error } = await supabase
-      .from("category_bookmarks")
-      .delete()
-      .eq("user_id", userId)
-      .eq("category_name", category);
-    if (error) {
-      console.warn("delete bookmark error:", error);
-      await showAlert(`Bookmark delete error: ${error.message}`);
-      return;
-    }
-    userBookmarks.delete(category);
-  } else {
-    if (userBookmarks.size >= MAX_BOOKMARKS) {
-      await showAlert(`Max ${MAX_BOOKMARKS} bookmarks`);
-      return;
-    }
-    const { error } = await supabase.from("category_bookmarks").insert({ user_id: userId, category_name: category });
-    if (error) {
-      console.warn("insert bookmark error:", error);
-      await showAlert(`Bookmark save error: ${error.message}`);
-      return;
-    }
-    userBookmarks.add(category);
-  }
-  renderCategoryButtons();
-};
-
-// 북마크 관리 피커
-const showBookmarkPicker = (userId) => {
-  const existing = document.getElementById("bookmark-picker");
-  if (existing) existing.remove();
-
-  const picker = document.createElement("div");
-  picker.id = "bookmark-picker";
-  picker.className = "upload-dir-picker";
-
-  const renderPickerContent = () => {
-    const bookmarked = imgDirs.filter((d) => userBookmarks.has(d));
-    const bookmarkedHtml =
-      bookmarked.length > 0
-        ? bookmarked
-            .map(
-              (dir) =>
-                `<button class="nes-btn is-success bm-toggle-btn" data-dir="${escapeHtml(dir)}"><i class="ph-fill ph-push-pin"></i>${escapeHtml(dir)}</button>`,
-            )
-            .join(" ")
-        : '<span class="nes-text is-disabled">no bookmarks</span>';
-
-    return (
-      '<div class="upload-dir-picker-inner nes-container is-dark">' +
-      `<p class="bm-count">bookmark (${userBookmarks.size}/${MAX_BOOKMARKS})</p>` +
-      `<div class="bm-bookmarked">${bookmarkedHtml}</div>` +
-      '<br><div class="new-dir-row">' +
-      '<input class="nes-input is-dark bm-search-input" type="text" placeholder="search category..." />' +
-      "</div>" +
-      '<div class="bm-search-results"></div>' +
-      '<br><button class="nes-btn is-error bm-close">close</button>' +
-      "</div>"
-    );
-  };
-
-  picker.innerHTML = renderPickerContent();
-  document.body.appendChild(picker);
-  picker.tabIndex = -1;
-  picker.focus();
-
-  const refreshPicker = () => {
-    const searchVal = picker.querySelector(".bm-search-input")?.value || "";
-    picker.innerHTML = renderPickerContent();
-    const input = picker.querySelector(".bm-search-input");
-    input.value = searchVal;
-    input.focus();
-    if (searchVal) filterCategories(searchVal);
-    bindPickerEvents();
-  };
-
-  const filterCategories = (query) => {
-    const resultsEl = picker.querySelector(".bm-search-results");
-    if (!query) {
-      resultsEl.innerHTML = "";
-      return;
-    }
-    const q = query.toLowerCase();
-    const matched = imgDirs.filter((d) => d.toLowerCase().includes(q) && !userBookmarks.has(d));
-    if (matched.length === 0) {
-      resultsEl.innerHTML = '<span class="nes-text is-disabled">no match</span>';
-      return;
-    }
-    resultsEl.innerHTML = matched
-      .map((dir) => `<button class="nes-btn bm-add-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`)
-      .join(" ");
-    for (const btn of resultsEl.querySelectorAll(".bm-add-btn")) {
-      btn.addEventListener("click", async () => {
-        await toggleBookmark(userId, btn.dataset.dir);
-        refreshPicker();
-      });
-    }
-  };
-
-  const bindPickerEvents = () => {
-    picker.querySelector(".bm-close").addEventListener("click", () => picker.remove());
-    picker.addEventListener("click", (e) => {
-      if (e.target === picker) picker.remove();
-    });
-    picker.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") picker.remove();
-    });
-    // 북마크 해제
-    for (const btn of picker.querySelectorAll(".bm-toggle-btn")) {
-      btn.addEventListener("click", async () => {
-        await toggleBookmark(userId, btn.dataset.dir);
-        refreshPicker();
-      });
-    }
-    // 검색 입력
-    picker.querySelector(".bm-search-input").addEventListener("input", (e) => {
-      filterCategories(e.target.value.trim());
-    });
-  };
-
-  bindPickerEvents();
-};
+renderCategoryButtons();
 
 const updateActiveDir = (dir) => {
   for (const d of imgDirs) {
@@ -485,7 +381,7 @@ document.getElementById("img_buttons_row").addEventListener("click", (e) => {
   if (btn) showAlert("Google login required");
 });
 
-// 구글 로그인 사용자: upload + my likes + 북마크 카테고리 + 북마크 관리
+// 구글 로그인 사용자: upload + my likes
 if (currentUploadUser && !currentUploadUser.is_anonymous) {
   const uploadBtn = document.getElementById("btn_upload");
   uploadBtn.classList.remove("is-disabled", "needs-google");
@@ -494,13 +390,6 @@ if (currentUploadUser && !currentUploadUser.is_anonymous) {
   const myLikesBtn = document.getElementById("btn_my_likes");
   myLikesBtn.classList.remove("is-disabled", "needs-google");
   myLikesBtn.classList.add("is-error");
-
-  await loadUserBookmarks(currentUploadUser.id);
-  const bmBtn = document.getElementById("btn_bookmark_manage");
-  bmBtn.classList.remove("is-disabled", "needs-google");
-  bmBtn.addEventListener("click", () => {
-    showBookmarkPicker(currentUploadUser.id);
-  });
 }
 
 document.getElementById("btn_my_likes").addEventListener("click", async () => {
@@ -615,13 +504,20 @@ const showUploadDirPicker = () => {
   const picker = document.createElement("div");
   picker.id = "upload-dir-picker";
   picker.className = "upload-dir-picker";
+  const dirsHtml =
+    imgDirs.length > 0
+      ? imgDirs
+          .map(
+            (dir) =>
+              `<button class="nes-btn is-primary upload-dir-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
+          )
+          .join(" ")
+      : '<span class="nes-text is-disabled">no categories</span>';
+
   picker.innerHTML =
     '<div class="upload-dir-picker-inner nes-container is-dark">' +
     "<p>upload category</p>" +
-    '<div class="new-dir-row">' +
-    '<input class="nes-input is-dark new-dir-input" type="text" placeholder="category name" maxlength="50">' +
-    '<button class="nes-btn is-disabled new-dir-btn" disabled>upload</button>' +
-    "</div>" +
+    `<div class="move-dir-list">${dirsHtml}</div>` +
     '<br><button class="nes-btn is-error upload-dir-cancel">cancel</button>' +
     "</div>";
   document.body.appendChild(picker);
@@ -635,32 +531,14 @@ const showUploadDirPicker = () => {
   picker.addEventListener("keydown", (e) => {
     if (e.key === "Escape") picker.remove();
   });
-  // 카테고리 입력 후 업로드
-  const newDirInput = picker.querySelector(".new-dir-input");
-  const newDirBtn = picker.querySelector(".new-dir-btn");
-  newDirInput.addEventListener("input", () => {
-    const hasValue = newDirInput.value.trim().length > 0;
-    newDirBtn.disabled = !hasValue;
-    newDirBtn.classList.toggle("is-disabled", !hasValue);
-    newDirBtn.classList.toggle("is-warning", hasValue);
-  });
-  newDirBtn.addEventListener("click", async () => {
-    const newDir = newDirInput.value.trim();
-    if (!newDir) return;
-    if (!/^[a-zA-Z0-9_-]+$/.test(newDir)) {
-      await showAlert("Category name must contain only alphanumeric characters, hyphens, and underscores");
-      return;
-    }
-    if (imgDirs.includes(newDir)) {
-      if (!(await showConfirm(`"${newDir}" already exists. Upload to this category?`))) return;
-    }
-    setUploadDir(newDir);
-    picker.remove();
-    document.getElementById("file_input").click();
-  });
-  newDirInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !newDirBtn.disabled) newDirBtn.click();
-  });
+  // 카테고리 선택 후 파일 선택창 열기
+  for (const btn of picker.querySelectorAll(".upload-dir-btn")) {
+    btn.addEventListener("click", () => {
+      setUploadDir(btn.dataset.dir);
+      picker.remove();
+      document.getElementById("file_input").click();
+    });
+  }
 };
 
 document.getElementById("btn_upload").addEventListener("click", (e) => {
@@ -848,7 +726,6 @@ document.getElementById("file_input").addEventListener("change", async (e) => {
       if (success) uploaded++;
     }
     if (uploaded > 0) {
-      if (uploadDir && !imgDirs.includes(uploadDir)) imgDirs.push(uploadDir);
       await loadImg(uploadDir || currentDir);
     }
   } finally {

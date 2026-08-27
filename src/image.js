@@ -113,41 +113,26 @@ const showMovePicker = (currentDir, onSelect) => {
   const existing = document.getElementById("move-dir-picker");
   if (existing) existing.remove();
 
-  Promise.all([
-    getImageDirs(""),
-    getCurrentUser().then((user) => {
-      if (!user || user.is_anonymous) return [];
-      return supabase
-        .from("category_bookmarks")
-        .select("category_name")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .then(({ data }) => (data || []).map((r) => r.category_name));
-    }),
-  ]).then(([dirs, bookmarks]) => {
-    const bookmarked = bookmarks.filter((d) => d !== currentDir);
+  getImageDirs("").then((dirs) => {
+    const others = dirs.filter((d) => d !== currentDir);
     const picker = document.createElement("div");
     picker.id = "move-dir-picker";
     picker.className = "upload-dir-picker";
 
-    const bookmarkedHtml =
-      bookmarked.length > 0
-        ? bookmarked
+    const dirsHtml =
+      others.length > 0
+        ? others
             .map(
               (dir) =>
-                `<button class="nes-btn is-primary move-dir-btn" data-dir="${escapeHtml(dir)}"><i class="ph-fill ph-push-pin"></i>${escapeHtml(dir)}</button>`,
+                `<button class="nes-btn is-primary move-dir-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
             )
             .join(" ")
-        : '<span class="nes-text is-disabled">no bookmarks</span>';
+        : '<span class="nes-text is-disabled">no categories</span>';
 
     picker.innerHTML =
       '<div class="upload-dir-picker-inner nes-container is-dark">' +
       "<p>move to</p>" +
-      `<div class="bm-bookmarked">${bookmarkedHtml}</div>` +
-      '<div class="new-dir-row">' +
-      '<input class="nes-input is-dark bm-search-input" type="text" placeholder="search category..." />' +
-      "</div>" +
-      '<div class="bm-search-results"></div>' +
+      `<div class="move-dir-list">${dirsHtml}</div>` +
       '<br><button class="nes-btn is-error move-dir-cancel">cancel</button>' +
       "</div>";
     document.body.appendChild(picker);
@@ -162,39 +147,12 @@ const showMovePicker = (currentDir, onSelect) => {
       if (e.key === "Escape") picker.remove();
     });
 
-    // 북마크 카테고리 클릭
     for (const btn of picker.querySelectorAll(".move-dir-btn")) {
       btn.addEventListener("click", () => {
         picker.remove();
         onSelect(btn.dataset.dir);
       });
     }
-
-    // 검색으로 다른 카테고리 찾기
-    picker.querySelector(".bm-search-input").addEventListener("input", (e) => {
-      const q = e.target.value.trim().toLowerCase();
-      const resultsEl = picker.querySelector(".bm-search-results");
-      if (!q) {
-        resultsEl.innerHTML = "";
-        return;
-      }
-      const matched = dirs.filter((d) => d !== currentDir && d.toLowerCase().includes(q));
-      if (matched.length === 0) {
-        resultsEl.innerHTML = '<span class="nes-text is-disabled">no match</span>';
-        return;
-      }
-      resultsEl.innerHTML = matched
-        .map(
-          (dir) => `<button class="nes-btn move-search-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
-        )
-        .join(" ");
-      for (const btn of resultsEl.querySelectorAll(".move-search-btn")) {
-        btn.addEventListener("click", () => {
-          picker.remove();
-          onSelect(btn.dataset.dir);
-        });
-      }
-    });
   });
 };
 

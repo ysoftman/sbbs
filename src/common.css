@@ -185,22 +185,15 @@ img.thumbnail:hover {
   margin-top: 12px;
 }
 
-.upload-dir-picker-inner .upload-dir-btn {
+.upload-dir-picker-inner .upload-dir-btn,
+.upload-dir-picker-inner .move-dir-btn {
   margin: 4px;
 }
 
-.new-dir-row {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  min-width: 0;
-}
-
-.new-dir-input {
-  width: min(200px, 60vw);
-  font-size: 12px;
+.move-dir-list {
+  margin: 8px 0;
+  max-height: 50vh;
+  overflow-y: auto;
 }
 
 .img-overlay-wrap {
@@ -664,34 +657,6 @@ video {
   display: contents;
 }
 
-#btn_bookmark_manage {
-  font-size: 14px;
-  padding: 2px 10px;
-  min-height: auto;
-}
-
-.bm-toggle-btn,
-.bm-add-btn {
-  margin: 4px;
-}
-
-.bm-bookmarked {
-  margin: 8px 0;
-}
-
-.bm-search-input {
-  width: 100%;
-  font-size: 12px;
-  padding: 4px 8px;
-  height: auto;
-}
-
-.bm-search-results {
-  margin-top: 8px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
 .nes-container.with-title {
   overflow: visible;
 }
@@ -1072,14 +1037,6 @@ video {
     max-width: 95%;
     max-height: 90vh;
     overflow-y: auto;
-  }
-
-  .new-dir-row {
-    flex-wrap: wrap;
-  }
-
-  .new-dir-input {
-    width: 100%;
   }
 
   .upload-dir-picker-inner .nes-btn,
