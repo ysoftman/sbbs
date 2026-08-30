@@ -117,6 +117,12 @@ img {
   height: auto;
 }
 
+video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
 img.thumbnail {
   max-width: 500px;
   max-height: 60vh;
@@ -233,7 +239,8 @@ img.thumbnail:hover {
   min-height: auto;
 }
 
-.img-overlay img {
+.img-overlay img,
+.img-overlay video {
   max-width: 100%;
   max-height: calc(95vh - 50px);
 }
@@ -372,12 +379,6 @@ img.thumbnail:hover {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-}
-
-video {
-  max-width: 100%;
-  height: auto;
-  display: block;
 }
 
 .img-content-row {

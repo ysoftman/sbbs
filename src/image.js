@@ -75,6 +75,8 @@ const copyDeepLink = async (name, btn) => {
 
 // 이미지 오버레이 표시 (파일 경로 + 이미지 사이즈)
 const showImageOverlay = (url, name) => {
+  document.querySelector(".img-overlay")?.remove();
+  const isVideo = isVideoName(name);
   const overlay = document.createElement("div");
   overlay.className = "img-overlay";
   overlay.onclick = (e) => {
@@ -88,7 +90,7 @@ const showImageOverlay = (url, name) => {
     `<button class="nes-btn is-primary img-overlay-copy" title="copy link" aria-label="copy link">` +
     `<i class="ph-fill ph-link"></i> copy link</button>` +
     `</div>` +
-    `<img src="${url}">` +
+    (isVideo ? `<video src="${url}" controls autoplay muted playsinline></video>` : `<img src="${url}">`) +
     `</div>`;
   document.body.appendChild(overlay);
   overlay.tabIndex = -1;
@@ -101,11 +103,20 @@ const showImageOverlay = (url, name) => {
     e.stopPropagation();
     copyDeepLink(name, copyBtn);
   });
+  if (isVideo) return;
   getMeta(url, (err, img) => {
     if (err || !img) return;
     const sizeEl = overlay.querySelector(`#overlay_size_${toSafeId(name)}`);
     if (sizeEl) sizeEl.textContent = `${img.naturalWidth} x ${img.naturalHeight}`;
   });
+};
+
+// 딥링크(#dir/file) 로 들어온 경우 목록 스크롤 대신 해당 파일만 오버레이로 보여준다
+export const showOverlayByName = (name) => {
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+  showImageOverlay(publicUrl, name);
 };
 
 // 파일 이동 카테고리 선택 피커 (admin 전용)

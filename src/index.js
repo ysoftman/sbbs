@@ -6,9 +6,9 @@ import "@phosphor-icons/web/fill";
 import "./common.css";
 
 import { getCurrentUser, supabase } from "./common.js";
-import { loadImages } from "./image.js";
+import { loadImages, showOverlayByName } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
-import { escapeHtml, formatCount, isVideoName, loadingIndicatorHtml, showAlert, toSafeId } from "./utils.js";
+import { escapeHtml, formatCount, loadingIndicatorHtml, showAlert, toSafeId } from "./utils.js";
 
 const LIST_PAGE_SIZE = 2;
 const GRID_PAGE_SIZE = 12;
@@ -24,8 +24,6 @@ let loadedDir = "";
 // loadImg/loadLatest 가 호출될 때마다 증가. 진행 중인 loadMoreImages 가 stale 인지 식별한다.
 let loadGeneration = 0;
 
-const getMediaElementId = (name) => `${toSafeId(name)}_${isVideoName(name) ? "video" : "img"}`;
-
 const buildMetaMap = (files) => {
   const metaMap = {};
   for (const f of files) {
@@ -34,7 +32,7 @@ const buildMetaMap = (files) => {
   return metaMap;
 };
 
-async function loadImg(path, scrollTarget) {
+async function loadImg(path) {
   loadGeneration++;
   const gen = loadGeneration;
   currentDir = path;
@@ -61,18 +59,6 @@ async function loadImg(path, scrollTarget) {
   await loadImages("images", imgNames, metaMap, false, viewMode);
   if (gen !== loadGeneration) return;
   updateSentinel();
-  if (scrollTarget) {
-    if (viewMode === "grid") {
-      const gridEl = document.getElementById(`grid_${toSafeId(scrollTarget)}`);
-      if (gridEl) gridEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    } else {
-      const targetId = getMediaElementId(scrollTarget);
-      const el = document.getElementById(targetId);
-      if (el) {
-        el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-    }
-  }
 }
 
 async function loadMoreImages() {
@@ -299,19 +285,13 @@ const updateActiveDir = (dir) => {
 
 const loadDirFromHash = (info, force = false) => {
   if (!info || !imgDirs.includes(info.dir)) return false;
-  if (info.image) {
-    const targetId = getMediaElementId(info.image);
-    const el = document.getElementById(targetId);
-    if (el) {
-      el.closest(".nes-container")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return true;
-    }
-  }
   if (info.dir !== loadedDir || force) {
     loadedDir = info.dir;
     updateActiveDir(info.dir);
-    loadImg(info.dir, info.image);
+    loadImg(info.dir);
   }
+  // 딥링크 대상은 목록 어디에 있든(페이지네이션 밖이어도) 바로 오버레이로 보여준다
+  if (info.image) showOverlayByName(info.image);
   return true;
 };
 
