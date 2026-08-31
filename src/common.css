@@ -1,3 +1,23 @@
+@font-face {
+  font-family: Galmuri11;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local("Galmuri11 Regular"),
+    url("../node_modules/galmuri/dist/Galmuri11.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: Galmuri11;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src:
+    local("Galmuri11 Bold"),
+    url("../node_modules/galmuri/dist/Galmuri11-Bold.woff2") format("woff2");
+}
+
 :root {
   /* Base Palette - backgrounds (deeper layering) */
   --color-bg-deep: #121518;
@@ -73,6 +93,8 @@
 
 html {
   overflow-x: clip;
+  /* rem 기준 유지 (nes.css 의 rem 여백이 이 값을 따른다) */
+  font-size: 14px;
 }
 
 html,
@@ -81,7 +103,16 @@ pre,
 code,
 kbd,
 samp {
-  font-size: 14px;
+  font-family: Galmuri11, monospace;
+}
+
+body,
+pre,
+code,
+kbd,
+samp {
+  /* Galmuri11 설계 크기. 11 의 배수에서만 픽셀이 뭉개지지 않는다 */
+  font-size: 11px;
 }
 
 *,
@@ -93,7 +124,6 @@ samp {
 body {
   background: var(--body-bg);
   color: var(--body-text);
-  font-family: Roboto, Helvetica, Arial, sans-serif;
   margin: 0;
   padding: 8px;
   overflow-x: clip;
@@ -218,8 +248,7 @@ img.thumbnail:hover {
   margin-bottom: 8px;
   background: var(--color-bg-overlay-bar);
   border-radius: 4px;
-  font-size: 14px;
-  font-family: "Press Start 2P", cursive;
+  font-size: 11px;
 }
 
 .img-overlay-path {
@@ -234,7 +263,7 @@ img.thumbnail:hover {
 }
 
 .img-overlay-copy {
-  font-size: 10px;
+  font-size: 11px;
   padding: 4px 10px;
   min-height: auto;
 }
@@ -361,7 +390,7 @@ img.thumbnail:hover {
 
 .grid-card-name {
   color: var(--file-name-color);
-  font-size: 10px;
+  font-size: 11px;
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -438,7 +467,7 @@ img.thumbnail:hover {
 }
 
 .msg-charcount {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--charcount-color);
   text-align: right;
 }
@@ -486,13 +515,13 @@ img.thumbnail:hover {
 }
 
 .loading-indicator {
-  font-size: 14px;
+  font-size: 11px;
   color: var(--loading-color);
 }
 
 .loading-dots span {
   animation: blink 1.4s infinite both;
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .loading-dots span:nth-child(2) {
@@ -549,7 +578,7 @@ img.thumbnail:hover {
 }
 
 .navbar-home {
-  font-size: 16px;
+  font-size: 22px;
   font-weight: bold;
   color: var(--color-gold);
   text-decoration: none;
@@ -562,7 +591,7 @@ img.thumbnail:hover {
 .navbar-stats {
   display: flex;
   gap: 8px;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
@@ -595,7 +624,7 @@ img.thumbnail:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .sc-key {
@@ -605,8 +634,7 @@ img.thumbnail:hover {
   color: var(--color-gold);
   border: 2px solid var(--color-border);
   border-radius: 2px;
-  font-family: "Press Start 2P", cursive;
-  font-size: 10px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -695,7 +723,6 @@ img.thumbnail:hover {
 
   .img-overlay-info {
     flex-wrap: wrap;
-    font-size: 11px;
     gap: 6px;
   }
 
@@ -712,7 +739,7 @@ img.thumbnail:hover {
 .msg-item {
   padding: 4px 0;
   border-bottom: 2px dashed var(--msg-border-color);
-  font-size: 12px;
+  font-size: 11px;
   word-break: break-word;
   display: flex;
   align-items: center;
@@ -747,7 +774,7 @@ img.thumbnail:hover {
 .msg-delete-btn {
   padding: 0 4px;
   min-height: auto;
-  font-size: 10px;
+  font-size: 11px;
   vertical-align: middle;
 }
 
@@ -759,7 +786,7 @@ img.thumbnail:hover {
 .msg-more-btn {
   padding: 2px 8px;
   min-height: auto;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .index-body {
@@ -782,6 +809,7 @@ img.thumbnail:hover {
 .nes-container.with-title > .title {
   background-color: var(--container-title-bg);
   color: var(--file-name-color);
+  font-size: 11px;
 }
 
 .nes-container.with-title > .title span[id$="_img_size"] {
@@ -828,14 +856,14 @@ img.thumbnail:hover {
 }
 
 .grid-card-like .like-count {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .img-file-move-btn,
 .img-file-delete-btn {
   padding: 0 4px;
   min-height: auto;
-  font-size: 10px;
+  font-size: 11px;
   vertical-align: middle;
 }
 
@@ -895,7 +923,7 @@ img.thumbnail:hover {
 #message h2 {
   color: var(--color-orange);
   font-weight: bold;
-  font-size: 16px;
+  font-size: 22px;
   margin: 0 0 8px;
 }
 
@@ -909,7 +937,7 @@ img.thumbnail:hover {
 #message p {
   line-height: 140%;
   margin: 16px 0 24px;
-  font-size: 14px;
+  font-size: 11px;
 }
 
 #message a {
@@ -926,19 +954,10 @@ img.thumbnail:hover {
 #load {
   color: var(--color-text-secondary);
   text-align: center;
-  font-size: 13px;
+  font-size: 11px;
 }
 
 @media screen and (max-width: 600px) {
-  html,
-  body,
-  pre,
-  code,
-  kbd,
-  samp {
-    font-size: 11px;
-  }
-
   body {
     padding: 0;
   }
@@ -964,19 +983,19 @@ img.thumbnail:hover {
   }
 
   .navbar-flex .nes-btn {
-    font-size: 10px;
+    font-size: 11px;
     padding: 4px 8px;
     white-space: nowrap;
   }
 
   .navbar-home {
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .navbar-stats {
     display: none;
     gap: 4px;
-    font-size: 9px;
+    font-size: 11px;
   }
 
   .navbar-login {
@@ -991,7 +1010,7 @@ img.thumbnail:hover {
   }
 
   .navbar-search .nes-input {
-    font-size: 9px;
+    font-size: 11px;
   }
 
   #img_buttons_row {
@@ -1003,7 +1022,7 @@ img.thumbnail:hover {
   }
 
   #img_buttons_row .nes-btn {
-    font-size: 10px;
+    font-size: 11px;
     padding: 4px 8px;
     white-space: nowrap;
   }
@@ -1017,21 +1036,8 @@ img.thumbnail:hover {
     padding-top: 12px;
   }
 
-  .nes-container.with-title > .title {
-    font-size: 10px;
-  }
-
-  .img-meta {
-    font-size: 9px;
-  }
-
   .img-overlay-info {
-    font-size: 10px;
     padding: 4px 8px;
-  }
-
-  .msg-item {
-    font-size: 10px;
   }
 
   .upload-dir-picker-inner {
@@ -1042,7 +1048,7 @@ img.thumbnail:hover {
 
   .upload-dir-picker-inner .nes-btn,
   .upload-dir-picker-inner .upload-dir-btn {
-    font-size: 10px;
+    font-size: 11px;
     padding: 4px 8px;
     margin: 3px;
   }
@@ -1053,7 +1059,7 @@ img.thumbnail:hover {
   }
 
   #load_img_buttons .nes-btn {
-    font-size: 10px;
+    font-size: 11px;
     padding: 4px 8px;
   }
 
@@ -1063,17 +1069,13 @@ img.thumbnail:hover {
   }
 
   .dialog-inner .nes-btn {
-    font-size: 10px;
+    font-size: 11px;
     padding: 4px 8px;
   }
 
   #images.grid-mode {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
     gap: 6px;
-  }
-
-  .grid-card-name {
-    font-size: 8px;
   }
 
   .grid-card-info {
