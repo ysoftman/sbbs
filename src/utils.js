@@ -51,6 +51,19 @@ window.addEventListener("resize", () => {
 export const loadingIndicatorHtml = (label = "loading") =>
   `<div class="loading-indicator">${label}<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
 
+// 화면을 통째로 채우는 로딩. 최종 레이아웃과 같은 모양이라 콘텐츠가 들어와도 자리가 튀지 않는다.
+export const skeletonHtml = (mode) =>
+  mode === "grid"
+    ? '<div class="sk-card"><div class="sk-media"></div><div class="sk-line"></div></div>'.repeat(12)
+    : '<div class="sk-row"><div class="sk-line sk-title"></div><div class="sk-media"></div></div>'.repeat(2);
+
+// 비어 있는 이유와 채우는 방법을 함께 보여준다
+export const emptyStateHtml = (icon, title, hint) =>
+  `<div class="empty-state"><i class="ph-fill ph-${icon}"></i>` +
+  `<p class="empty-title">${title}</p>` +
+  (hint ? `<p class="empty-hint">${hint}</p>` : "") +
+  "</div>";
+
 // 테마 커스텀 alert
 export const showAlert = (message) => {
   return new Promise((resolve) => {

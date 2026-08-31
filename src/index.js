@@ -5,7 +5,15 @@ import "./common.css";
 import { getCurrentUser, supabase } from "./common.js";
 import { loadImages, showOverlayByName } from "./image.js";
 import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
-import { escapeHtml, formatCount, loadingIndicatorHtml, showAlert, toSafeId } from "./utils.js";
+import {
+  emptyStateHtml,
+  escapeHtml,
+  formatCount,
+  loadingIndicatorHtml,
+  showAlert,
+  skeletonHtml,
+  toSafeId,
+} from "./utils.js";
 
 const LIST_PAGE_SIZE = 2;
 const GRID_PAGE_SIZE = 12;
@@ -200,7 +208,11 @@ document.getElementById("btn_view_toggle").addEventListener("click", () => {
 
 const imgDirs = await getImageDirs("");
 if (imgDirs.length === 0) {
-  document.getElementById("images").innerHTML = '<p class="empty-state">No categories found</p>';
+  document.getElementById("images").innerHTML = emptyStateHtml(
+    "folder-open",
+    "No categories yet",
+    "Upload an image to create the first one.",
+  );
 }
 
 getViewCnt("ysoftman", "viewcnt");
@@ -319,7 +331,7 @@ const loadLatest = async () => {
   allFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (allFiles.length === 0) {
-    imagesEl.innerHTML = '<p class="empty-state">No images found</p>';
+    imagesEl.innerHTML = emptyStateHtml("image", "Nothing here yet", "Upload an image to start this category.");
     allImagesLoaded = true;
     updateSentinel();
     return;
@@ -378,7 +390,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   currentOffset = 0;
 
   const imagesEl = document.getElementById("images");
-  imagesEl.innerHTML = loadingIndicatorHtml();
+  imagesEl.innerHTML = skeletonHtml(viewMode);
 
   const user = await getCurrentUser();
   if (!user) {
@@ -393,7 +405,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   if (gen !== loadGeneration) return;
 
   if (!likes || likes.length === 0) {
-    imagesEl.innerHTML = '<p class="empty-state">No liked images</p>';
+    imagesEl.innerHTML = emptyStateHtml("thumbs-up", "No likes yet", "Tap the thumbs-up on any image to save it here.");
     updateSentinel();
     return;
   }
@@ -419,7 +431,7 @@ const doSearch = async () => {
   currentOffset = 0;
 
   const imagesEl = document.getElementById("images");
-  imagesEl.innerHTML = loadingIndicatorHtml("searching");
+  imagesEl.innerHTML = skeletonHtml(viewMode);
 
   // 파일명 검색
   const { data: fileMatches } = await supabase
@@ -455,7 +467,11 @@ const doSearch = async () => {
   }
 
   if (imgNames.length === 0) {
-    imagesEl.innerHTML = `<p class="empty-state">No results for "${escapeHtml(query)}"</p>`;
+    imagesEl.innerHTML = emptyStateHtml(
+      "magnifying-glass",
+      `No results for "${escapeHtml(query)}"`,
+      "Search matches file names. Try a shorter word.",
+    );
     updateSentinel();
     return;
   }
