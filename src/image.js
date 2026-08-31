@@ -17,6 +17,10 @@ import {
   toSafeId,
 } from "./utils.js";
 
+// 이미지 높이에 맞춰 메시지 영역을 접을 때 지켜야 할 하한.
+// 입력 폼(약 90px)과 목록(min-height 60px)이 잘리지 않을 만큼.
+const MIN_SIDE_HEIGHT = 200;
+
 // admin 상태 캐싱 (세션 내 변경 없음)
 let cachedAdminStatus = null;
 supabase.auth.onAuthStateChange(() => {
@@ -144,7 +148,7 @@ const showMovePicker = (currentDir, onSelect) => {
       '<div class="upload-dir-picker-inner panel">' +
       "<p>move to</p>" +
       `<div class="move-dir-list">${dirsHtml}</div>` +
-      '<br><button class="btn btn-danger move-dir-cancel">cancel</button>' +
+      '<br><button class="btn move-dir-cancel">cancel</button>' +
       "</div>";
     document.body.appendChild(picker);
     picker.tabIndex = -1;
@@ -310,7 +314,8 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
         showImageOverlay(thumbEl.dataset.url, thumbEl.dataset.name);
       });
       const sid = toSafeId(name);
-      // 메시지 영역(.img-side-msg) 높이를 이미지 높이에 맞춘다.
+      // 메시지 영역(.img-side-msg) 높이를 이미지 높이에 맞추되 MIN_SIDE_HEIGHT 아래로는 내리지 않는다.
+      // .img-side-msg 는 overflow:hidden 이라 이 값이 그대로 잘리는 높이가 된다.
       // flex column 레이아웃이라 입력 폼이 보이면 그 높이만큼 msg-list 가 자동으로 줄어든다.
       const applyMsgListHeight = () => {
         const sideEl = thumbEl.closest(".img-content-row")?.querySelector(".img-side-msg");
@@ -319,7 +324,7 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
           sideEl.style.height = "";
           return;
         }
-        sideEl.style.height = `${thumbEl.clientHeight}px`;
+        sideEl.style.height = `${Math.max(thumbEl.clientHeight, MIN_SIDE_HEIGHT)}px`;
       };
       maxHeightUpdaters[sid] = applyMsgListHeight;
       if (thumbEl.complete) applyMsgListHeight();

@@ -121,7 +121,7 @@ export const showConfirm = (message) => {
       '<p class="dialog-message"></p>' +
       '<div class="dialog-buttons">' +
       '<button class="btn btn-primary dialog-yes">OK</button> ' +
-      '<button class="btn btn-danger dialog-no">Cancel</button>' +
+      '<button class="btn dialog-no">Cancel</button>' +
       "</div></div>";
     overlay.querySelector(".dialog-message").textContent = message;
     document.body.appendChild(overlay);

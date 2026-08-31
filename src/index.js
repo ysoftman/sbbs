@@ -288,7 +288,7 @@ const updateActiveDir = (dir) => {
   document.getElementById("btn_latest").className = dir === "__latest__" ? "btn btn-active" : "btn btn-primary";
   const myLikesBtn = document.getElementById("btn_my_likes");
   if (!myLikesBtn.classList.contains("needs-google")) {
-    myLikesBtn.className = dir === "__my_likes__" ? "btn btn-active" : "btn btn-danger";
+    myLikesBtn.className = dir === "__my_likes__" ? "btn btn-active" : "btn btn-primary";
   }
 };
 
@@ -509,7 +509,7 @@ const showUploadDirPicker = () => {
     '<div class="upload-dir-picker-inner panel">' +
     "<p>upload category</p>" +
     `<div class="move-dir-list">${dirsHtml}</div>` +
-    '<br><button class="btn btn-danger upload-dir-cancel">cancel</button>' +
+    '<br><button class="btn upload-dir-cancel">cancel</button>' +
     "</div>";
   document.body.appendChild(picker);
   picker.tabIndex = -1;
