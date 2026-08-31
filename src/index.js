@@ -1,5 +1,4 @@
 import "./common.js";
-import "nes.css/css/nes.min.css";
 import "@phosphor-icons/web/fill";
 import "./common.css";
 
@@ -237,7 +236,7 @@ const renderCategoryButtons = () => {
   container.innerHTML = "";
   for (const dir of imgDirs) {
     const safeDir = escapeHtml(dir);
-    const item = `<a class="nes-btn is-primary" draggable="true" data-dir="${safeDir}" id="load_${toSafeId(dir)}" href="#${encodeURIComponent(dir)}">${safeDir}</a>`;
+    const item = `<a class="btn btn-primary" draggable="true" data-dir="${safeDir}" id="load_${toSafeId(dir)}" href="#${encodeURIComponent(dir)}">${safeDir}</a>`;
     container.insertAdjacentHTML("beforeend", item);
   }
 };
@@ -272,12 +271,12 @@ const updateActiveDir = (dir) => {
   for (const d of imgDirs) {
     const btn = document.getElementById(`load_${toSafeId(d)}`);
     if (!btn) continue;
-    btn.className = d === dir ? "nes-btn is-success" : "nes-btn is-primary";
+    btn.className = d === dir ? "btn btn-active" : "btn btn-primary";
   }
-  document.getElementById("btn_latest").className = dir === "__latest__" ? "nes-btn is-success" : "nes-btn is-primary";
+  document.getElementById("btn_latest").className = dir === "__latest__" ? "btn btn-active" : "btn btn-primary";
   const myLikesBtn = document.getElementById("btn_my_likes");
   if (!myLikesBtn.classList.contains("needs-google")) {
-    myLikesBtn.className = dir === "__my_likes__" ? "nes-btn is-success" : "nes-btn is-error";
+    myLikesBtn.className = dir === "__my_likes__" ? "btn btn-active" : "btn btn-danger";
   }
 };
 
@@ -363,11 +362,9 @@ document.getElementById("img_buttons_row").addEventListener("click", (e) => {
 if (currentUploadUser && !currentUploadUser.is_anonymous) {
   const uploadBtn = document.getElementById("btn_upload");
   uploadBtn.classList.remove("is-disabled", "needs-google");
-  uploadBtn.classList.add("is-warning");
 
   const myLikesBtn = document.getElementById("btn_my_likes");
   myLikesBtn.classList.remove("is-disabled", "needs-google");
-  myLikesBtn.classList.add("is-error");
 }
 
 document.getElementById("btn_my_likes").addEventListener("click", async () => {
@@ -487,16 +484,16 @@ const showUploadDirPicker = () => {
       ? imgDirs
           .map(
             (dir) =>
-              `<button class="nes-btn is-primary upload-dir-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
+              `<button class="btn btn-primary upload-dir-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
           )
           .join(" ")
-      : '<span class="nes-text is-disabled">no categories</span>';
+      : '<span class="t-muted">no categories</span>';
 
   picker.innerHTML =
-    '<div class="upload-dir-picker-inner nes-container is-dark">' +
+    '<div class="upload-dir-picker-inner panel">' +
     "<p>upload category</p>" +
     `<div class="move-dir-list">${dirsHtml}</div>` +
-    '<br><button class="nes-btn is-error upload-dir-cancel">cancel</button>' +
+    '<br><button class="btn btn-danger upload-dir-cancel">cancel</button>' +
     "</div>";
   document.body.appendChild(picker);
   picker.tabIndex = -1;
@@ -551,10 +548,10 @@ const showShortcutsHelp = () => {
     ([k, desc]) => `<div class="sc-row"><kbd class="sc-key">${k}</kbd><span class="sc-desc">${desc}</span></div>`,
   ).join("");
   overlay.innerHTML =
-    '<div class="dialog-inner nes-container is-dark">' +
+    '<div class="dialog-inner panel">' +
     "<p>keyboard shortcuts</p>" +
     `<div class="sc-list">${rows}</div>` +
-    '<div class="dialog-buttons"><button class="nes-btn is-primary sc-close">close</button></div>' +
+    '<div class="dialog-buttons"><button class="btn btn-primary sc-close">close</button></div>' +
     "</div>";
   document.body.appendChild(overlay);
   overlay.tabIndex = -1;
@@ -570,7 +567,7 @@ const showShortcutsHelp = () => {
 };
 
 // viewport 중앙에 가장 가까운 이미지 컨테이너
-const getItemSelector = () => (viewMode === "grid" ? "#images .grid-card" : "#images .nes-container");
+const getItemSelector = () => (viewMode === "grid" ? "#images .grid-card" : "#images .card");
 
 const findNearestContainer = () => {
   const containers = document.querySelectorAll(getItemSelector());

@@ -45,11 +45,11 @@ const renderMessageRow = (row, currentUserId, imageName, listId) => {
   );
   const deleteBtn =
     currentUserId && row.user_id === currentUserId
-      ? ` <button class="nes-btn is-error msg-delete-btn" data-msg-id="${row.id}" data-image-name="${escapeHtml(imageName)}" data-list-id="${escapeHtml(listId)}">x</button>`
+      ? ` <button class="btn btn-danger msg-delete-btn" data-msg-id="${row.id}" data-image-name="${escapeHtml(imageName)}" data-list-id="${escapeHtml(listId)}">x</button>`
       : "";
   const seed = row.user_id || row.user_name || "Unknown";
   const avatar = `<img class="msg-avatar" src="${makeDicebear(seed)}" title="dicebear pixel-art">`;
-  return `<div class="msg-item">${avatar}<span class="nes-text is-disabled">${date}</span> <span class="nes-text is-primary">${user}</span> ${msg}${deleteBtn}</div>`;
+  return `<div class="msg-item">${avatar}<span class="t-muted">${date}</span> <span class="t-strong">${user}</span> ${msg}${deleteBtn}</div>`;
 };
 
 // 이미지 메시지 조회 (초기 10개, 이후 5개씩 추가 로드)
@@ -69,7 +69,7 @@ export const loadMessages = async (imageName, listId, currentUserId, offset = 0)
     .range(offset, offset + limit);
   if (error) {
     console.warn("loadMessages error:", error);
-    el.innerHTML = `<div class="msg-item"><span class="nes-text is-error">${escapeHtml(error.message)}</span></div>`;
+    el.innerHTML = `<div class="msg-item"><span class="t-danger">${escapeHtml(error.message)}</span></div>`;
     return;
   }
   if (!data || data.length === 0) {
@@ -102,10 +102,7 @@ export const loadMessages = async (imageName, listId, currentUserId, offset = 0)
   }
   // 더보기 버튼
   if (hasMore) {
-    el.insertAdjacentHTML(
-      "beforeend",
-      `<div class="msg-more"><button class="nes-btn msg-more-btn">more</button></div>`,
-    );
+    el.insertAdjacentHTML("beforeend", `<div class="msg-more"><button class="btn msg-more-btn">more</button></div>`);
     el.querySelector(".msg-more-btn").addEventListener("click", () => {
       loadMessages(imageName, listId, currentUserId, newOffset);
     });

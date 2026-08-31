@@ -8,8 +8,6 @@
     "@dicebear/styles": "^10.6.0",
     "@phosphor-icons/web": "^2.1.2",
     "@supabase/supabase-js": "^2.112.4",
-    "galmuri": "^2.40.3",
-    "nes.css": "^2.3.0",
     "sass": "^1.103.1"
   },
   "devDependencies": {

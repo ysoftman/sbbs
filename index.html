@@ -5,12 +5,12 @@
     <title>sbbs</title>
     <meta
       name="description"
-      content="sbbs - a tiny retro board for sharing images"
+      content="sbbs - a tiny board for sharing images"
     />
     <meta property="og:title" content="sbbs" />
     <meta
       property="og:description"
-      content="sbbs - a tiny retro board for sharing images"
+      content="sbbs - a tiny board for sharing images"
     />
     <meta property="og:type" content="website" />
   </head>
@@ -22,26 +22,26 @@
           <span class="navbar-search">
             <input
               type="text"
-              class="nes-input is-dark"
+              class="input"
               id="search_input"
               placeholder="search..."
             />
-            <button type="button" class="nes-btn is-primary" id="btn_search" aria-label="search">
+            <button type="button" class="btn btn-primary" id="btn_search" aria-label="search">
               <i class="ph-fill ph-magnifying-glass"></i>
             </button>
           </span>
           <span class="navbar-stats">
             <span class="navbar-views"
-              >views: <span class="nes-text is-success" id="viewcnt"></span
+              >views: <span class="t-ok" id="viewcnt"></span
             ></span>
             <span class="navbar-views"
-              >images: <span class="nes-text is-success" id="imgcnt"></span
+              >images: <span class="t-ok" id="imgcnt"></span
             ></span>
           </span>
           <span class="navbar-login">
             <button
               type="button"
-              class="nes-btn"
+              class="btn"
               id="btn_view_toggle"
               title="toggle view (v)"
               aria-label="toggle grid/list view"
@@ -50,7 +50,7 @@
             </button>
             <button
               type="button"
-              class="nes-btn"
+              class="btn"
               id="btn_theme"
               title="toggle theme"
               aria-label="toggle theme"
@@ -59,7 +59,7 @@
             </button>
             <button
               type="button"
-              class="nes-btn"
+              class="btn"
               id="btn_help"
               title="keyboard shortcuts (?)"
               aria-label="keyboard shortcuts"
@@ -68,15 +68,15 @@
             </button>
             <button
               type="button"
-              class="nes-btn is-primary"
+              class="btn btn-primary"
               id="login_anonymous"
             >
               anon
             </button>
-            <button type="button" class="nes-btn is-primary" id="login_google">
+            <button type="button" class="btn btn-primary" id="login_google">
               <i class="ph-fill ph-google-logo"></i> login
             </button>
-            <button type="button" class="nes-btn is-purple" id="btn_version">
+            <button type="button" class="btn" id="btn_version">
               ver
             </button>
           </span>
@@ -85,18 +85,18 @@
       <div id="img_buttons_row">
         <button
           type="button"
-          class="nes-btn is-disabled needs-google"
+          class="btn is-disabled needs-google"
           id="btn_my_likes"
         >
           <i class="ph-fill ph-heart"></i> my likes
         </button>
-        <button type="button" class="nes-btn is-primary" id="btn_latest">
+        <button type="button" class="btn btn-primary" id="btn_latest">
           <i class="ph-fill ph-clock"></i> latest
         </button>
         <span id="load_img_buttons"></span>
         <button
           type="button"
-          class="nes-btn is-disabled needs-google"
+          class="btn is-disabled needs-google"
           id="btn_upload"
         >
           upload
@@ -111,26 +111,25 @@
       </div>
       <div id="version_info" style="display: none">
         <div class="version-row">
-          <p class="nes-balloon from-right is-dark">
-            <span class="nes-text is-primary"
-              >sbbs (simple bulletin board system) - a tiny retro board for
+          <p class="note">
+            <span class="t-strong"
+              >sbbs (simple bulletin board system) - a tiny board for
               sharing images</span
             ><br />
-            <span class="nes-text is-error"
-              >this page uses NES.CSS and Galmuri11 font</span
+            <span class="t-muted"
+              >built with vanilla JS, Vite and Supabase</span
             ><br />
             <span id="version"></span>
           </p>
-          <i class="nes-octocat animate"></i>
         </div>
       </div>
     </header>
-    <main class="index-body nes-text">
+    <main class="index-body">
       <div id="images" class="items"></div>
     </main>
     <button
       type="button"
-      class="nes-btn is-primary"
+      class="btn btn-primary"
       id="btn_scroll_top"
       title="scroll to top"
       aria-label="scroll to top"

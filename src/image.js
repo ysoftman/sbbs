@@ -87,7 +87,7 @@ const showImageOverlay = (url, name) => {
     `<div class="img-overlay-info">` +
     `<span class="img-overlay-path">${escapeHtml(name)}</span>` +
     `<span class="img-overlay-size" id="overlay_size_${toSafeId(name)}"></span>` +
-    `<button class="nes-btn is-primary img-overlay-copy" title="copy link" aria-label="copy link">` +
+    `<button class="btn btn-primary img-overlay-copy" title="copy link" aria-label="copy link">` +
     `<i class="ph-fill ph-link"></i> copy link</button>` +
     `</div>` +
     (isVideo ? `<video src="${url}" controls autoplay muted playsinline></video>` : `<img src="${url}">`) +
@@ -135,16 +135,16 @@ const showMovePicker = (currentDir, onSelect) => {
         ? others
             .map(
               (dir) =>
-                `<button class="nes-btn is-primary move-dir-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
+                `<button class="btn btn-primary move-dir-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
             )
             .join(" ")
-        : '<span class="nes-text is-disabled">no categories</span>';
+        : '<span class="t-muted">no categories</span>';
 
     picker.innerHTML =
-      '<div class="upload-dir-picker-inner nes-container is-dark">' +
+      '<div class="upload-dir-picker-inner panel">' +
       "<p>move to</p>" +
       `<div class="move-dir-list">${dirsHtml}</div>` +
-      '<br><button class="nes-btn is-error move-dir-cancel">cancel</button>' +
+      '<br><button class="btn btn-danger move-dir-cancel">cancel</button>' +
       "</div>";
     document.body.appendChild(picker);
     picker.tabIndex = -1;
@@ -250,11 +250,11 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
   const msgHtml =
     `<div class="img-message" id="msg_form_${msgId}" style="display:none">` +
     `<div class="msg-textarea-wrap">` +
-    `<textarea class="nes-textarea" id="msg_${msgId}" rows="2" placeholder="message..."></textarea>` +
+    `<textarea class="textarea" id="msg_${msgId}" rows="2" placeholder="message..."></textarea>` +
     `<span class="msg-charcount" id="msg_charcount_${msgId}">0/10,000 bytes</span>` +
     `</div>` +
-    `<button class="nes-btn is-primary" id="msg_save_${msgId}">save</button>` +
-    `<span class="nes-text is-success" id="msg_status_${msgId}"></span>` +
+    `<button class="btn btn-primary" id="msg_save_${msgId}">save</button>` +
+    `<span class="t-ok" id="msg_status_${msgId}"></span>` +
     `</div>` +
     `<div class="msg-list" id="msg_list_${msgId}"></div>`;
   const meta = metaMap[name] || {};
@@ -282,14 +282,14 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
   if (isImage) {
     const mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`;
     return (
-      `<div class="nes-container with-title">` +
+      `<div class="card">` +
       `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(name)}</a> <span id="${msgId}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
       `<div class="img-content-row"><div class="img-media" id="${msgId}_img">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
     );
   }
   const mediaHtml = `<video controls autoplay muted playsinline><source type="video/mp4" src="${publicUrl}"></video>`;
   return (
-    `<div class="nes-container with-title">` +
+    `<div class="card">` +
     `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(name)}</a> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
     `<div class="img-content-row"><div class="img-media" id="${msgId}_video">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
   );
@@ -339,13 +339,13 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
     const moveEl = document.getElementById(`file_move_${msgId}`);
     if (moveEl) {
       moveEl.style.display = "";
-      moveEl.innerHTML = `<button class="nes-btn is-warning img-file-move-btn">move</button>`;
+      moveEl.innerHTML = `<button class="btn img-file-move-btn">move</button>`;
       moveEl.querySelector(".img-file-move-btn").addEventListener("click", () => {
         const currentDir = name.includes("/") ? name.substring(0, name.indexOf("/")) : "";
         showMovePicker(currentDir, async (targetDir) => {
           const newPath = await moveFile(name, targetDir);
           if (newPath) {
-            const container = moveEl.closest(".nes-container");
+            const container = moveEl.closest(".card");
             if (container) container.remove();
           }
         });
@@ -358,12 +358,12 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
     const delEl = document.getElementById(`file_del_${msgId}`);
     if (delEl) {
       delEl.style.display = "";
-      delEl.innerHTML = `<button class="nes-btn is-error img-file-delete-btn">x</button>`;
+      delEl.innerHTML = `<button class="btn btn-danger img-file-delete-btn">x</button>`;
       delEl.querySelector(".img-file-delete-btn").addEventListener("click", async () => {
         if (!(await showConfirm(`delete "${name}"?`))) return;
         const deleted = await deleteFile(name);
         if (deleted) {
-          const container = delEl.closest(".nes-container");
+          const container = delEl.closest(".card");
           if (container) container.remove();
         }
       });
@@ -431,7 +431,7 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
         if (!textarea.value.trim()) return;
         const statusEl = document.getElementById(`msg_status_${msgId}`);
         if (getByteLength(textarea.value) > MAX_MSG_BYTES) {
-          statusEl.innerHTML = `<span class="nes-text is-error">${MAX_MSG_BYTES.toLocaleString()} bytes exceeded</span>`;
+          statusEl.innerHTML = `<span class="t-danger">${MAX_MSG_BYTES.toLocaleString()} bytes exceeded</span>`;
           return;
         }
         saveBtn.dataset.pending = "true";

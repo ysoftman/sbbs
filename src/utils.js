@@ -57,10 +57,10 @@ export const showAlert = (message) => {
     const overlay = document.createElement("div");
     overlay.className = "dialog-overlay";
     overlay.innerHTML =
-      '<div class="dialog-inner nes-container is-dark" role="alertdialog" aria-modal="true">' +
+      '<div class="dialog-inner panel" role="alertdialog" aria-modal="true">' +
       '<p class="dialog-message"></p>' +
       '<div class="dialog-buttons">' +
-      '<button class="nes-btn is-primary dialog-ok">OK</button>' +
+      '<button class="btn btn-primary dialog-ok">OK</button>' +
       "</div></div>";
     overlay.querySelector(".dialog-message").textContent = message;
     document.body.appendChild(overlay);
@@ -104,11 +104,11 @@ export const showConfirm = (message) => {
     const overlay = document.createElement("div");
     overlay.className = "dialog-overlay";
     overlay.innerHTML =
-      '<div class="dialog-inner nes-container is-dark" role="dialog" aria-modal="true">' +
+      '<div class="dialog-inner panel" role="dialog" aria-modal="true">' +
       '<p class="dialog-message"></p>' +
       '<div class="dialog-buttons">' +
-      '<button class="nes-btn is-primary dialog-yes">OK</button> ' +
-      '<button class="nes-btn is-error dialog-no">Cancel</button>' +
+      '<button class="btn btn-primary dialog-yes">OK</button> ' +
+      '<button class="btn btn-danger dialog-no">Cancel</button>' +
       "</div></div>";
     overlay.querySelector(".dialog-message").textContent = message;
     document.body.appendChild(overlay);
