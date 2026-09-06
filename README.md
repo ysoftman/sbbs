@@ -85,12 +85,13 @@ For table creation, RLS policies, and migrations, see [DATABASE.md](DATABASE.md)
 Supabase Storage does not support filenames containing non-ASCII characters such as Korean or Chinese
 (an upload results in an `InvalidKey` error).
 
-To work around this, the app encodes the filename with `encodeURIComponent` before upload and
-decodes it back (`displayName()`) only when displaying. The stored `file_path` is always ASCII-safe
-while the original name is preserved on screen.
+To work around this, the app generates a unique ASCII-only storage key for every upload
+(e.g. `1736012345678-a1b2c3.jpg`) instead of using the original filename. The original filename is
+preserved in the `image_info.display_name` column and used for all on-screen display and search.
 
-- Upload: `병아리.jpg` → storage path `%EB%B3%91%EC%95%84%EB%A6%AC.jpg`, displayed as `병아리.jpg`
-- Plain ASCII names (e.g. `photo.jpg`) pass through unchanged.
+- Upload: `병아리.jpg` → storage path `<timestamp>-<random>.jpg`, `image_info.display_name = "병아리.jpg"`
+- `display_name` requires a database migration (see [DATABASE.md](DATABASE.md)). Existing rows are backfilled
+  with the file name part of `file_path`; rows still missing it fall back to the storage key.
 
 Related issues:
 

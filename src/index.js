@@ -433,12 +433,11 @@ const doSearch = async () => {
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML = skeletonHtml(viewMode);
 
-  // 파일명 검색 (file_path 는 encodeURIComponent 로 저장되므로 검색어도 동일하게 인코딩해 매칭)
-  const encodedQuery = encodeURIComponent(query);
+  // 파일명 검색 (display_name 은 원본 파일명을 그대로 저장하므로 검색어를 그대로 사용해 매칭)
   const { data: fileMatches } = await supabase
     .from("image_info")
-    .select("file_path")
-    .ilike("file_path", `%${encodedQuery}%`)
+    .select("file_path, display_name")
+    .ilike("display_name", `%${query}%`)
     .order("created_at", { ascending: false })
     .limit(50);
 

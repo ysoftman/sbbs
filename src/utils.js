@@ -9,15 +9,6 @@ export const toSafeId = (name) =>
 
 export const isVideoName = (name) => name.toLowerCase().endsWith(".mp4");
 
-// 저장 시 파일명은 Supabase Storage ASCII 제한 때문에 encodeURIComponent 로 인코딩된다. 표시 시 원본으로 복원한다.
-export const displayName = (name) => {
-  try {
-    return decodeURIComponent(name);
-  } catch {
-    return name;
-  }
-};
-
 export const formatCount = (n) => {
   if (n == null) return "0";
   if (n < 1000) return `${n}`;

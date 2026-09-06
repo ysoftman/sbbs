@@ -3,7 +3,6 @@ import { loadMessages, saveMessage } from "./message.js";
 import { deleteFile, getImageDirs, getMeta, moveFile, STORAGE_BUCKET } from "./storage.js";
 import { supabaseUrl } from "./supabase_config.js";
 import {
-  displayName,
   escapeHtml,
   formatCount,
   formatDate,
@@ -79,7 +78,7 @@ const copyDeepLink = async (name, btn) => {
 };
 
 // 이미지 오버레이 표시 (파일 경로 + 이미지 사이즈)
-const showImageOverlay = (url, name) => {
+const showImageOverlay = (url, name, displayName) => {
   document.querySelector(".img-overlay")?.remove();
   const isVideo = isVideoName(name);
   const overlay = document.createElement("div");
@@ -90,7 +89,7 @@ const showImageOverlay = (url, name) => {
   overlay.innerHTML =
     `<div class="img-overlay-wrap">` +
     `<div class="img-overlay-info">` +
-    `<span class="img-overlay-path">${escapeHtml(displayName(name))}</span>` +
+    `<span class="img-overlay-path">${escapeHtml(displayName)}</span>` +
     `<span class="img-overlay-size" id="overlay_size_${toSafeId(name)}"></span>` +
     `<button class="btn btn-primary img-overlay-copy" title="copy link" aria-label="copy link">` +
     `<i class="ph-fill ph-link"></i> copy link</button>` +
@@ -117,11 +116,14 @@ const showImageOverlay = (url, name) => {
 };
 
 // 딥링크(#dir/file) 로 들어온 경우 목록 스크롤 대신 해당 파일만 오버레이로 보여준다
-export const showOverlayByName = (name) => {
+export const showOverlayByName = async (name) => {
   const {
     data: { publicUrl },
   } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
-  showImageOverlay(publicUrl, name);
+  let displayName = name;
+  const { data } = await supabase.from("image_info").select("display_name").eq("file_path", name).maybeSingle();
+  if (data?.display_name) displayName = data.display_name;
+  showImageOverlay(publicUrl, name, displayName);
 };
 
 // 파일 이동 카테고리 선택 피커 (admin 전용)
@@ -173,12 +175,11 @@ const showMovePicker = (currentDir, onSelect) => {
 };
 
 // 그리드 모드용 간략 HTML 생성
-const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet) => {
+const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet, displayName) => {
   const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
   const likeCount = likeCountMap[name] || 0;
   const isLiked = userLikeSet.has(name);
-  const shortName = name.includes("/") ? name.split("/").pop() : name;
 
   const mediaHtml = isImage
     ? `<img class="grid-thumb" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`
@@ -188,7 +189,7 @@ const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet) => {
     `<div class="grid-card" data-name="${escapeHtml(name)}" id="grid_${msgId}">` +
     `<div class="grid-card-media">${mediaHtml}</div>` +
     `<div class="grid-card-info">` +
-    `<a class="grid-card-name" href="#${encodeURIComponent(name)}" title="${escapeHtml(displayName(name))}">${escapeHtml(displayName(shortName))}</a>` +
+    `<a class="grid-card-name" href="#${encodeURIComponent(name)}" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</a>` +
     `<span class="grid-card-like" id="like_${msgId}">` +
     `<i class="ph-fill ${isLiked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart" ` +
     `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
@@ -199,7 +200,7 @@ const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet) => {
 };
 
 // 그리드 모드 이벤트 핸들러 (썸네일 클릭 → 오버레이, 좋아요)
-const setupGridHandlers = (name, currentUser) => {
+const setupGridHandlers = (name, currentUser, displayName) => {
   const msgId = toSafeId(name);
   const card = document.getElementById(`grid_${msgId}`);
   if (!card) return;
@@ -208,7 +209,7 @@ const setupGridHandlers = (name, currentUser) => {
     const thumb = card.querySelector(".grid-thumb");
     if (thumb) {
       thumb.addEventListener("click", () => {
-        showImageOverlay(thumb.dataset.url, thumb.dataset.name);
+        showImageOverlay(thumb.dataset.url, thumb.dataset.name, displayName);
       });
     }
   }
@@ -249,7 +250,7 @@ const setupGridHandlers = (name, currentUser) => {
 };
 
 // 이미지/비디오 HTML 생성
-const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, userLikeSet) => {
+const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, userLikeSet, displayName) => {
   const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
   const msgHtml =
@@ -288,20 +289,28 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
     const mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`;
     return (
       `<div class="card">` +
-      `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName(name))}</a> <span id="${msgId}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
+      `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName)}</a> <span id="${msgId}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
       `<div class="img-content-row"><div class="img-media" id="${msgId}_img">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
     );
   }
   const mediaHtml = `<video controls autoplay muted playsinline><source type="video/mp4" src="${publicUrl}"></video>`;
   return (
     `<div class="card">` +
-    `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName(name))}</a> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
+    `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName)}</a> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
     `<div class="img-content-row"><div class="img-media" id="${msgId}_video">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
   );
 };
 
 // 이벤트 핸들러 등록 (썸네일 클릭, 삭제, 이동, 메시지 등)
-const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMap, messageLoadPromises) => {
+const setupImageHandlers = (
+  name,
+  publicUrlMap,
+  currentUser,
+  isAdmin,
+  uploaderMap,
+  messageLoadPromises,
+  displayName,
+) => {
   const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
   const id = isImage ? `${msgId}_img` : `${msgId}_video`;
@@ -312,7 +321,7 @@ const setupImageHandlers = (name, publicUrlMap, currentUser, isAdmin, uploaderMa
     const thumbEl = document.getElementById(id).querySelector(".thumbnail");
     if (thumbEl) {
       thumbEl.addEventListener("click", () => {
-        showImageOverlay(thumbEl.dataset.url, thumbEl.dataset.name);
+        showImageOverlay(thumbEl.dataset.url, thumbEl.dataset.name, displayName);
       });
       const sid = toSafeId(name);
       // 메시지 영역(.img-side-msg) 높이를 이미지 높이에 맞추되 MIN_SIDE_HEIGHT 아래로는 내리지 않는다.
@@ -498,16 +507,34 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
 
   if (viewMode === "grid") {
     // 그리드 모드: 간략 카드, 댓글/업로더 정보 스킵
+    const displayNameMap = {};
+    if (imageNames.length > 0) {
+      const { data: infoData } = await supabase
+        .from("image_info")
+        .select("file_path, display_name")
+        .in("file_path", imageNames);
+      if (infoData) {
+        for (const row of infoData) {
+          displayNameMap[row.file_path] = row.display_name;
+        }
+      }
+    }
     for (const name of imageNames) {
       const {
         data: { publicUrl },
       } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
       publicUrlMap[name] = publicUrl;
-      const item = buildGridItemHtml(name, publicUrl, likeCountMap, userLikeSet);
+      const item = buildGridItemHtml(
+        name,
+        publicUrl,
+        likeCountMap,
+        userLikeSet,
+        displayNameMap[name] || name.split("/").pop(),
+      );
       document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
     }
     for (const name of imageNames) {
-      setupGridHandlers(name, currentUser);
+      setupGridHandlers(name, currentUser, displayNameMap[name] || name.split("/").pop());
     }
     return;
   }
@@ -517,11 +544,15 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
   if (imageNames.length > 0) {
     const { data: uploadData } = await supabase
       .from("image_info")
-      .select("file_path, user_name, user_id")
+      .select("file_path, user_name, user_id, display_name")
       .in("file_path", imageNames);
     if (uploadData) {
       for (const row of uploadData) {
-        uploaderMap[row.file_path] = { user_name: row.user_name, user_id: row.user_id };
+        uploaderMap[row.file_path] = {
+          user_name: row.user_name,
+          user_id: row.user_id,
+          display_name: row.display_name,
+        };
       }
     }
   }
@@ -531,7 +562,15 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
       data: { publicUrl },
     } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
     publicUrlMap[name] = publicUrl;
-    const item = buildImageHtml(name, metaMap, uploaderMap, publicUrl, likeCountMap, userLikeSet);
+    const item = buildImageHtml(
+      name,
+      metaMap,
+      uploaderMap,
+      publicUrl,
+      likeCountMap,
+      userLikeSet,
+      uploaderMap[name]?.display_name || name.split("/").pop(),
+    );
     document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
   }
   let isAdmin = false;
@@ -549,7 +588,15 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
 
   const messageLoadPromises = [];
   for (const name of imageNames) {
-    setupImageHandlers(name, publicUrlMap, currentUser, isAdmin, uploaderMap, messageLoadPromises);
+    setupImageHandlers(
+      name,
+      publicUrlMap,
+      currentUser,
+      isAdmin,
+      uploaderMap,
+      messageLoadPromises,
+      uploaderMap[name]?.display_name || name.split("/").pop(),
+    );
   }
   await Promise.all(messageLoadPromises);
 };

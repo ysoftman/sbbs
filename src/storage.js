@@ -159,15 +159,17 @@ export const uploadFile = async (file) => {
     await showAlert(`Unsupported file type: ${file.type}\nAllowed: jpg, png, gif, webp, bmp, svg, mp4`);
     return false;
   }
-  // Supabase Storage 는 non-ASCII 파일명(한글 등)을 거부하므로 encodeURIComponent 로 ASCII 로 인코딩한다.
-  // 화면 표시 시 displayName() 으로 원본 파일명을 복원한다.
-  const encodedName = encodeURIComponent(file.name);
   const user = await getCurrentUser();
   if (!user || user.is_anonymous) {
     await showAlert("Google login required");
     return false;
   }
-  const filePath = uploadDir ? `${uploadDir}/${encodedName}` : encodedName;
+  // Supabase Storage 는 non-ASCII 파일명(한글 등)을 거부하므로
+  // 원본 파일명 대신 ASCII 로만 구성된 고유 키를 생성한다.
+  const dotIndex = file.name.lastIndexOf(".");
+  const ext = dotIndex >= 0 ? file.name.slice(dotIndex + 1) : "";
+  const storageKey = `${Date.now()}-${crypto.randomUUID().slice(0, 6)}.${ext}`;
+  const filePath = uploadDir ? `${uploadDir}/${storageKey}` : storageKey;
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: false });
   if (error) {
     await showAlert(`Upload error: ${error.message}`);
@@ -181,6 +183,7 @@ export const uploadFile = async (file) => {
       file_path: filePath,
       user_name: userName,
       user_id: user.id,
+      display_name: file.name,
     },
     { onConflict: "file_path" },
   );

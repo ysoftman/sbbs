@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS image_info (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   file_path TEXT NOT NULL UNIQUE,
   user_name TEXT NOT NULL DEFAULT '',
+  display_name TEXT NOT NULL DEFAULT '',
   user_id UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -276,4 +277,17 @@ ALTER TABLE image_likes
   ADD CONSTRAINT image_likes_image_name_fkey
     FOREIGN KEY (image_name) REFERENCES image_info(file_path)
     ON DELETE CASCADE ON UPDATE CASCADE;
+```
+
+### image_info 에 display_name 컬럼 추가
+
+업로드 시 Storage 경로는 ASCII 키로 저장되고 원본 파일명은 `display_name` 에 보관된다.
+기존 row 는 `file_path` 의 파일명 부분으로 채운다.
+
+```sql
+ALTER TABLE image_info ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT '';
+
+UPDATE image_info
+SET display_name = regexp_replace(file_path, '^.*/', '')
+WHERE display_name = '';
 ```
