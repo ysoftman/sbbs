@@ -3,6 +3,7 @@ import { loadMessages, saveMessage } from "./message.js";
 import { deleteFile, getImageDirs, getMeta, moveFile, STORAGE_BUCKET } from "./storage.js";
 import { supabaseUrl } from "./supabase_config.js";
 import {
+  displayName,
   escapeHtml,
   formatCount,
   formatDate,
@@ -89,7 +90,7 @@ const showImageOverlay = (url, name) => {
   overlay.innerHTML =
     `<div class="img-overlay-wrap">` +
     `<div class="img-overlay-info">` +
-    `<span class="img-overlay-path">${escapeHtml(name)}</span>` +
+    `<span class="img-overlay-path">${escapeHtml(displayName(name))}</span>` +
     `<span class="img-overlay-size" id="overlay_size_${toSafeId(name)}"></span>` +
     `<button class="btn btn-primary img-overlay-copy" title="copy link" aria-label="copy link">` +
     `<i class="ph-fill ph-link"></i> copy link</button>` +
@@ -187,7 +188,7 @@ const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet) => {
     `<div class="grid-card" data-name="${escapeHtml(name)}" id="grid_${msgId}">` +
     `<div class="grid-card-media">${mediaHtml}</div>` +
     `<div class="grid-card-info">` +
-    `<a class="grid-card-name" href="#${encodeURIComponent(name)}" title="${escapeHtml(name)}">${escapeHtml(shortName)}</a>` +
+    `<a class="grid-card-name" href="#${encodeURIComponent(name)}" title="${escapeHtml(displayName(name))}">${escapeHtml(displayName(shortName))}</a>` +
     `<span class="grid-card-like" id="like_${msgId}">` +
     `<i class="ph-fill ${isLiked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart" ` +
     `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
@@ -287,14 +288,14 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
     const mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`;
     return (
       `<div class="card">` +
-      `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(name)}</a> <span id="${msgId}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
+      `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName(name))}</a> <span id="${msgId}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
       `<div class="img-content-row"><div class="img-media" id="${msgId}_img">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
     );
   }
   const mediaHtml = `<video controls autoplay muted playsinline><source type="video/mp4" src="${publicUrl}"></video>`;
   return (
     `<div class="card">` +
-    `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(name)}</a> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
+    `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName(name))}</a> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
     `<div class="img-content-row"><div class="img-media" id="${msgId}_video">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
   );
 };

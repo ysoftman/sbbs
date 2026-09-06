@@ -80,13 +80,17 @@ Add a second policy to restrict uploads to Google-authenticated users (anonymous
 
 For table creation, RLS policies, and migrations, see [DATABASE.md](DATABASE.md).
 
-### Storage Filename Restrictions (non-ASCII Characters Not Allowed)
+### Storage Filename Encoding (non-ASCII File Names)
 
-Supabase Storage does not support filenames containing non-ASCII characters such as Korean or Chinese.
-Drag-and-drop uploads in the dashboard will result in an `InvalidKey` error.
+Supabase Storage does not support filenames containing non-ASCII characters such as Korean or Chinese
+(an upload results in an `InvalidKey` error).
 
-- `병아리.jpg` (X) → `chick.jpg` (O)
-- `방독면-아이콘.png` (X) → `gas_mask_icon.png` (O)
+To work around this, the app encodes the filename with `encodeURIComponent` before upload and
+decodes it back (`displayName()`) only when displaying. The stored `file_path` is always ASCII-safe
+while the original name is preserved on screen.
+
+- Upload: `병아리.jpg` → storage path `%EB%B3%91%EC%95%84%EB%A6%AC.jpg`, displayed as `병아리.jpg`
+- Plain ASCII names (e.g. `photo.jpg`) pass through unchanged.
 
 Related issues:
 

@@ -159,16 +159,15 @@ export const uploadFile = async (file) => {
     await showAlert(`Unsupported file type: ${file.type}\nAllowed: jpg, png, gif, webp, bmp, svg, mp4`);
     return false;
   }
-  if (!/^[a-zA-Z0-9._-]+$/.test(file.name)) {
-    await showAlert("File name must contain only letters, numbers, dots, hyphens, and underscores (no spaces)");
-    return false;
-  }
+  // Supabase Storage 는 non-ASCII 파일명(한글 등)을 거부하므로 encodeURIComponent 로 ASCII 로 인코딩한다.
+  // 화면 표시 시 displayName() 으로 원본 파일명을 복원한다.
+  const encodedName = encodeURIComponent(file.name);
   const user = await getCurrentUser();
   if (!user || user.is_anonymous) {
     await showAlert("Google login required");
     return false;
   }
-  const filePath = uploadDir ? `${uploadDir}/${file.name}` : file.name;
+  const filePath = uploadDir ? `${uploadDir}/${encodedName}` : encodedName;
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file, { upsert: false });
   if (error) {
     await showAlert(`Upload error: ${error.message}`);
