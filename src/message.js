@@ -1,7 +1,7 @@
 import { supabase } from "./common.js";
 import { escapeHtml, makeDicebear, maxHeightUpdaters, showAlert, showConfirm } from "./utils.js";
 
-const INITIAL_LIMIT = 10;
+export const INITIAL_LIMIT = 10;
 const MORE_LIMIT = 5;
 
 // 이미지 메시지 저장
@@ -52,27 +52,13 @@ const renderMessageRow = (row, currentUserId, imageName, listId) => {
   return `<div class="msg-item">${avatar}<span class="t-muted">${date}</span> <span class="t-strong">${user}</span> ${msg}${deleteBtn}</div>`;
 };
 
-// 이미지 메시지 조회 (초기 10개, 이후 5개씩 추가 로드)
-export const loadMessages = async (imageName, listId, currentUserId, offset = 0) => {
+// 조회된 메시지 렌더링 (limit 보다 1개 많으면 more 버튼 표시).
+// 초기 목록은 loadImages 가 image_info 임베드로 미리 받아온 rows 를 넘기므로 이미지별 요청이 없다.
+export const renderMessages = (imageName, listId, currentUserId, data, offset = 0) => {
   const el = document.getElementById(listId);
-  if (!el) {
-    console.warn("loadMessages: element not found:", listId);
-    return;
-  }
+  if (!el) return;
   const limit = offset === 0 ? INITIAL_LIMIT : MORE_LIMIT;
-  // 1개 더 조회하여 다음 페이지 존재 여부 확인
-  const { data, error } = await supabase
-    .from("image_messages")
-    .select("id, message, user_name, user_id, created_at")
-    .eq("image_name", imageName)
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit);
-  if (error) {
-    console.warn("loadMessages error:", error);
-    el.innerHTML = `<div class="msg-item"><span class="t-danger">${escapeHtml(error.message)}</span></div>`;
-    return;
-  }
-  if (!data || data.length === 0) {
+  if (data.length === 0) {
     if (offset > 0) {
       const oldMore = el.querySelector(".msg-more");
       if (oldMore) oldMore.remove();
@@ -110,4 +96,27 @@ export const loadMessages = async (imageName, listId, currentUserId, offset = 0)
   // 메시지 로드 후 textarea max-height 재계산
   const msgIdKey = listId.replace("msg_list_", "");
   if (maxHeightUpdaters[msgIdKey]) maxHeightUpdaters[msgIdKey]();
+};
+
+// 이미지 메시지 조회 (초기 10개, 이후 5개씩 추가 로드). more 버튼과 저장/삭제 후 갱신에 사용
+export const loadMessages = async (imageName, listId, currentUserId, offset = 0) => {
+  const el = document.getElementById(listId);
+  if (!el) {
+    console.warn("loadMessages: element not found:", listId);
+    return;
+  }
+  const limit = offset === 0 ? INITIAL_LIMIT : MORE_LIMIT;
+  // 1개 더 조회하여 다음 페이지 존재 여부 확인
+  const { data, error } = await supabase
+    .from("image_messages")
+    .select("id, message, user_name, user_id, created_at")
+    .eq("image_name", imageName)
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit);
+  if (error) {
+    console.warn("loadMessages error:", error);
+    el.innerHTML = `<div class="msg-item"><span class="t-danger">${escapeHtml(error.message)}</span></div>`;
+    return;
+  }
+  renderMessages(imageName, listId, currentUserId, data || [], offset);
 };

@@ -1,5 +1,5 @@
 import { getCurrentUser, supabase } from "./common.js";
-import { loadMessages, saveMessage } from "./message.js";
+import { INITIAL_LIMIT, loadMessages, renderMessages, saveMessage } from "./message.js";
 import { deleteFile, getImageDirs, getMeta, moveFile, STORAGE_BUCKET } from "./storage.js";
 import { supabaseUrl } from "./supabase_config.js";
 import {
@@ -302,15 +302,7 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
 };
 
 // 이벤트 핸들러 등록 (썸네일 클릭, 삭제, 이동, 메시지 등)
-const setupImageHandlers = (
-  name,
-  publicUrlMap,
-  currentUser,
-  isAdmin,
-  uploaderMap,
-  messageLoadPromises,
-  displayName,
-) => {
+const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap, displayName) => {
   const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
   const id = isImage ? `${msgId}_img` : `${msgId}_video`;
@@ -337,17 +329,15 @@ const setupImageHandlers = (
         sideEl.style.height = `${Math.max(thumbEl.clientHeight, MIN_SIDE_HEIGHT)}px`;
       };
       maxHeightUpdaters[sid] = applyMsgListHeight;
-      if (thumbEl.complete) applyMsgListHeight();
-      thumbEl.addEventListener("load", applyMsgListHeight);
+      // 이미지 크기 표시는 별도 Image 객체로 다시 받지 않고 lazy 로딩되는 썸네일 자체의 load 를 사용한다
+      const onThumbLoad = () => {
+        applyMsgListHeight();
+        const sizeEl = document.getElementById(`${msgId}_img_size`);
+        if (sizeEl && thumbEl.naturalWidth) sizeEl.innerHTML = `(${thumbEl.naturalWidth}x${thumbEl.naturalHeight})`;
+      };
+      if (thumbEl.complete) onThumbLoad();
+      thumbEl.addEventListener("load", onThumbLoad);
     }
-    getMeta(publicUrlMap[name], (err, img) => {
-      if (err || !img) return;
-      const imgSize = `(${img.naturalWidth}x${img.naturalHeight})`;
-      if (document.getElementById(`${msgId}_img_size`) == null) {
-        return;
-      }
-      document.getElementById(`${msgId}_img_size`).innerHTML = imgSize;
-    });
   }
   // admin 전용 파일 이동 버튼
   if (isAdmin) {
@@ -424,8 +414,8 @@ const setupImageHandlers = (
       });
     }
   }
-  // 메시지 로드 (병렬 실행을 위해 promise 수집)
-  messageLoadPromises.push(loadMessages(name, `msg_list_${msgId}`, currentUser?.id));
+  // 메시지 렌더 (loadImages 가 image_info 임베드로 미리 받아온 rows)
+  renderMessages(name, `msg_list_${msgId}`, currentUser?.id, messageMap[name] || []);
   // 로그인한 사용자만 메시지 입력 가능
   if (currentUser) {
     const formEl = document.getElementById(`msg_form_${msgId}`);
@@ -478,99 +468,59 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
 
   // 로그인 상태 확인 (admin 여부는 캐싱)
   const currentUser = await getCurrentUser();
+  const isGrid = viewMode === "grid";
 
-  // 좋아요 수 batch 조회
+  // image_info 한 번의 조회에 좋아요(+리스트 모드는 최신 댓글)를 임베드해 페이지 단위로 가져온다.
+  // image_likes / image_messages 가 image_info.file_path 를 FK 로 참조하므로 PostgREST 가 관계를 인식하고,
+  // 임베드 order/limit 은 부모 행마다 적용되어 이미지별 요청이 필요 없다.
+  const uploaderMap = {};
   const likeCountMap = {};
+  const userLikeSet = new Set();
+  const messageMap = {};
   if (imageNames.length > 0) {
-    const { data: likeCounts } = await supabase.from("image_likes").select("image_name").in("image_name", imageNames);
-    if (likeCounts) {
-      for (const row of likeCounts) {
-        likeCountMap[row.image_name] = (likeCountMap[row.image_name] || 0) + 1;
-      }
+    const msgSelect = isGrid ? "" : ", image_messages(id, message, user_name, user_id, created_at)";
+    let query = supabase
+      .from("image_info")
+      .select(`file_path, user_name, user_id, display_name, image_likes(user_id)${msgSelect}`)
+      .in("file_path", imageNames);
+    if (!isGrid) {
+      // 1개 더 조회하여 more 버튼 표시 여부 판단
+      query = query
+        .order("created_at", { referencedTable: "image_messages", ascending: false })
+        .limit(INITIAL_LIMIT + 1, { referencedTable: "image_messages" });
+    }
+    const { data, error } = await query;
+    if (error) console.warn("image_info error:", error);
+    for (const row of data || []) {
+      uploaderMap[row.file_path] = row;
+      likeCountMap[row.file_path] = row.image_likes.length;
+      if (currentUser && row.image_likes.some((l) => l.user_id === currentUser.id)) userLikeSet.add(row.file_path);
+      messageMap[row.file_path] = row.image_messages || [];
     }
   }
+  const displayNameOf = (name) => uploaderMap[name]?.display_name || name.split("/").pop();
 
-  // 현재 사용자의 좋아요 상태 (구글 로그인 사용자만)
-  let userLikeSet = new Set();
-  if (currentUser && !currentUser.is_anonymous && imageNames.length > 0) {
-    const { data: userLikes } = await supabase
-      .from("image_likes")
-      .select("image_name")
-      .in("image_name", imageNames)
-      .eq("user_id", currentUser.id);
-    if (userLikes) {
-      userLikeSet = new Set(userLikes.map((r) => r.image_name));
-    }
-  }
-
-  const publicUrlMap = {};
-
-  if (viewMode === "grid") {
+  if (isGrid) {
     // 그리드 모드: 간략 카드, 댓글/업로더 정보 스킵
-    const displayNameMap = {};
-    if (imageNames.length > 0) {
-      const { data: infoData } = await supabase
-        .from("image_info")
-        .select("file_path, display_name")
-        .in("file_path", imageNames);
-      if (infoData) {
-        for (const row of infoData) {
-          displayNameMap[row.file_path] = row.display_name;
-        }
-      }
-    }
     for (const name of imageNames) {
       const {
         data: { publicUrl },
       } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
-      publicUrlMap[name] = publicUrl;
-      const item = buildGridItemHtml(
-        name,
-        publicUrl,
-        likeCountMap,
-        userLikeSet,
-        displayNameMap[name] || name.split("/").pop(),
-      );
+      const item = buildGridItemHtml(name, publicUrl, likeCountMap, userLikeSet, displayNameOf(name));
       document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
     }
     for (const name of imageNames) {
-      setupGridHandlers(name, currentUser, displayNameMap[name] || name.split("/").pop());
+      setupGridHandlers(name, currentUser, displayNameOf(name));
     }
     return;
   }
 
-  // 리스트 모드: 기존 동작
-  const uploaderMap = {};
-  if (imageNames.length > 0) {
-    const { data: uploadData } = await supabase
-      .from("image_info")
-      .select("file_path, user_name, user_id, display_name")
-      .in("file_path", imageNames);
-    if (uploadData) {
-      for (const row of uploadData) {
-        uploaderMap[row.file_path] = {
-          user_name: row.user_name,
-          user_id: row.user_id,
-          display_name: row.display_name,
-        };
-      }
-    }
-  }
-
+  // 리스트 모드
   for (const name of imageNames) {
     const {
       data: { publicUrl },
     } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
-    publicUrlMap[name] = publicUrl;
-    const item = buildImageHtml(
-      name,
-      metaMap,
-      uploaderMap,
-      publicUrl,
-      likeCountMap,
-      userLikeSet,
-      uploaderMap[name]?.display_name || name.split("/").pop(),
-    );
+    const item = buildImageHtml(name, metaMap, uploaderMap, publicUrl, likeCountMap, userLikeSet, displayNameOf(name));
     document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
   }
   let isAdmin = false;
@@ -586,17 +536,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
     isAdmin = cachedAdminStatus;
   }
 
-  const messageLoadPromises = [];
   for (const name of imageNames) {
-    setupImageHandlers(
-      name,
-      publicUrlMap,
-      currentUser,
-      isAdmin,
-      uploaderMap,
-      messageLoadPromises,
-      uploaderMap[name]?.display_name || name.split("/").pop(),
-    );
+    setupImageHandlers(name, currentUser, isAdmin, uploaderMap, messageMap, displayNameOf(name));
   }
-  await Promise.all(messageLoadPromises);
 };
