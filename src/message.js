@@ -59,9 +59,11 @@ export const renderMessages = (imageName, listId, currentUserId, data, offset = 
   if (!el) return;
   const limit = offset === 0 ? INITIAL_LIMIT : MORE_LIMIT;
   if (data.length === 0) {
-    if (offset > 0) {
-      const oldMore = el.querySelector(".msg-more");
-      if (oldMore) oldMore.remove();
+    // 초기 페이지가 비면(마지막 댓글 삭제 등) 남아 있는 목록을 비우고, 추가 페이지가 비면 more 버튼만 제거
+    if (offset === 0) {
+      el.innerHTML = "";
+    } else {
+      el.querySelector(".msg-more")?.remove();
     }
     return;
   }
