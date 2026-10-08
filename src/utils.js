@@ -25,6 +25,28 @@ export const formatDate = (dateStr) => {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 };
 
+// 정확한 일시 (YYYY/MM/DD HH:mm). 상대 시간의 title 로 쓴다
+export const formatDateTime = (dateStr) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return `${formatDate(dateStr)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+// 상대 시간: 1분 미만 "just now", 이후 "5m ago" / "2h ago" / "3d ago", 7일 이상은 YYYY/MM/DD.
+// 미래 시각(기기 시계 차이)은 "just now" 로 본다. now 는 검증용으로 주입할 수 있다.
+const relativeTime = new Intl.RelativeTimeFormat("en", { style: "narrow" });
+export const formatRelativeTime = (dateStr, now = Date.now()) => {
+  if (!dateStr) return "";
+  const minutes = Math.floor((now - new Date(dateStr).getTime()) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return relativeTime.format(-minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return relativeTime.format(-hours, "hour");
+  const days = Math.floor(hours / 24);
+  if (days < 7) return relativeTime.format(-days, "day");
+  return formatDate(dateStr);
+};
+
 export const MAX_MSG_BYTES = 10000;
 export const getByteLength = (str) => textEncoder.encode(str).length;
 

@@ -129,11 +129,13 @@ export const showOverlayByName = async (name) => {
   showImageOverlay(publicUrl, name, displayName);
 };
 
-// 좋아요 표시 (리스트·그리드 공통). like-count 가 비면 CSS 로 숨긴다.
+// 좋아요 표시 (리스트·그리드 공통). 키보드로도 누를 수 있는 토글 버튼이고 상태는 aria-pressed 로 알린다.
+// like-count 가 비면 CSS 로 숨긴다.
 const buildLikeHtml = (cls, name, likeCount, isLiked) =>
   `<span class="${cls}" id="like_${toSafeId(name)}">` +
-  `<i class="ph-fill ph-thumbs-up ${isLiked ? "like-active" : "like-inactive"} like-heart" ` +
-  `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
+  `<button type="button" class="like-heart ${isLiked ? "like-active" : "like-inactive"}" aria-label="like" ` +
+  `aria-pressed="${isLiked}" data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required">` +
+  `<i class="ph-fill ph-thumbs-up" aria-hidden="true"></i></button>` +
   `<span class="like-count">${likeCount ? formatCount(likeCount) : ""}</span></span>`;
 
 // 좋아요 핸들러 (리스트·그리드 공통). 구글 로그인 사용자만 토글, 그 외는 로그인 안내
@@ -142,7 +144,6 @@ const setupLikeHandler = (name, currentUser) => {
   const heartEl = likeEl?.querySelector(".like-heart");
   if (!heartEl) return;
   if (!currentUser || currentUser.is_anonymous) {
-    heartEl.style.cursor = "pointer";
     heartEl.addEventListener("click", () => showAlert("Google login required"));
     return;
   }
@@ -158,6 +159,7 @@ const setupLikeHandler = (name, currentUser) => {
         return;
       }
       heartEl.dataset.liked = data.liked;
+      heartEl.setAttribute("aria-pressed", String(data.liked));
       heartEl.classList.toggle("like-active", data.liked);
       heartEl.classList.toggle("like-inactive", !data.liked);
       likeEl.querySelector(".like-count").textContent = data.like_count ? formatCount(data.like_count) : "";
@@ -214,31 +216,37 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
   const meta = metaMap[name] || {};
   const uploadInfo = uploaderMap[name] || {};
   const uploaderAvatar = uploadInfo.user_id
-    ? `<img class="title-avatar" src="${makeDicebear(uploadInfo.user_id)}">`
+    ? `<img class="title-avatar" src="${makeDicebear(uploadInfo.user_id)}" alt="">`
     : "";
-  const metaHtml =
-    `<span class="img-meta">` +
-    (meta.size ? `<span class="img-file-size">${formatFileSize(meta.size)}</span> ` : "") +
-    (meta.created_at ? `<span class="img-upload-time">${formatDate(meta.created_at)}</span> ` : "") +
-    (uploadInfo.user_name
-      ? `${uploaderAvatar}<span class="img-uploader">${escapeHtml(uploadInfo.user_name)}</span> `
-      : "") +
-    `</span>`;
+  // 마지막 메타 항목과 좋아요를 한 덩어리(.img-meta-end)로 묶어, 줄바꿈될 때 좋아요만 다음 줄에 혼자 남지 않게 한다
+  const metaParts = [
+    meta.size ? `<span class="img-file-size">${formatFileSize(meta.size)}</span>` : "",
+    meta.created_at ? `<span class="img-upload-time">${formatDate(meta.created_at)}</span>` : "",
+    uploadInfo.user_name
+      ? `<span class="img-uploader">${uploaderAvatar}${escapeHtml(uploadInfo.user_name)}</span>`
+      : "",
+  ].filter(Boolean);
   const likeHtml = buildLikeHtml("img-like", name, likeCountMap[name] || 0, userLikeSet.has(name));
+  const metaEndHtml = `<span class="img-meta-end">${metaParts.pop() ?? ""}${likeHtml}</span>`;
+  const metaHtml = `<span class="img-meta">${[...metaParts, metaEndHtml].join(" ")}</span>`;
+  // 파일 조작(admin move, 본인/admin 삭제)은 .img-file-actions 로 따로 묶는다. 좁은 화면에서 제목과 다른 열에 둬
+  // 터치 히트 영역이 제목 링크/좋아요를 덮지 않게 한다. 넓은 화면에서는 두 묶음 모두 display: contents 라 배치가 같다.
   const moveHtml = `<span class="img-file-move" id="file_move_${msgId}" style="display:none"></span>`;
   const deleteHtml = `<span class="img-file-delete" id="file_del_${msgId}" style="display:none"></span>`;
+  const actionsHtml = `<span class="img-file-actions">${moveHtml}${deleteHtml}</span>`;
+  const linkHtml = `<a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName)}</a>`;
   if (isImage) {
     const mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" alt="${escapeHtml(displayName)}">`;
     return (
       `<div class="card">` +
-      `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName)}</a> <span id="${msgId}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
+      `<p class="title"><span class="title-main">${linkHtml} <span id="${msgId}_img_size"></span> ${metaHtml}</span> ${actionsHtml}</p>` +
       `<div class="img-content-row"><div class="img-media" id="${msgId}_img">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
     );
   }
   const mediaHtml = `<video controls autoplay muted playsinline><source type="video/mp4" src="${publicUrl}"></video>`;
   return (
     `<div class="card">` +
-    `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName)}</a> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
+    `<p class="title"><span class="title-main">${linkHtml} ${metaHtml}</span> ${actionsHtml}</p>` +
     `<div class="img-content-row"><div class="img-media" id="${msgId}_video">${mediaHtml}</div><div class="img-side-msg">${msgHtml}</div></div></div>`
   );
 };
@@ -292,7 +300,7 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
     const delEl = document.getElementById(`file_del_${msgId}`);
     if (delEl) {
       delEl.style.display = "";
-      delEl.innerHTML = `<button class="btn btn-danger img-file-delete-btn">x</button>`;
+      delEl.innerHTML = `<button class="btn btn-danger img-file-delete-btn" aria-label="delete file">x</button>`;
       delEl.querySelector(".img-file-delete-btn").addEventListener("click", async () => {
         if (!(await showConfirm(`delete "${displayName}"?`))) return;
         const deleted = await deleteFile(name);

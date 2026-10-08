@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>sbbs</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta
       name="description"
       content="sbbs - a tiny board for sharing images"
@@ -69,32 +70,58 @@
             </button>
             <button
               type="button"
-              class="btn btn-primary"
-              id="login_anonymous"
+              class="btn btn-primary account-btn"
+              id="btn_account"
+              popovertarget="account_menu"
             >
-              anon
+              <i class="ph-fill ph-user-circle"></i
+              ><span class="account-name">login</span
+              ><i class="ph-fill ph-caret-down account-caret"></i>
             </button>
-            <button type="button" class="btn btn-primary" id="login_google">
-              <i class="ph-fill ph-google-logo"></i> login
-            </button>
-            <button type="button" class="btn" id="btn_version">
-              ver
-            </button>
+            <div id="account_menu" class="account-menu" popover>
+              <button type="button" class="menu-item" id="login_google">
+                <i class="ph-fill ph-google-logo"></i> login with Google
+              </button>
+              <button type="button" class="menu-item" id="login_anonymous">
+                <i class="ph-fill ph-detective"></i> continue anonymously
+              </button>
+              <button type="button" class="menu-item" id="btn_logout" hidden>
+                <i class="ph-fill ph-sign-out"></i> log out
+              </button>
+              <hr class="menu-sep" />
+              <button type="button" class="menu-item" id="btn_version">
+                <i class="ph-fill ph-info"></i> about
+              </button>
+              <div id="version_info" style="display: none">
+                <p class="note">
+                  <span class="t-strong"
+                    >sbbs (simple bulletin board system) - a tiny board for
+                    sharing images</span
+                  ><br />
+                  <span class="t-muted"
+                    >built with vanilla JS, Vite and Supabase</span
+                  ><br />
+                  <span id="version"></span>
+                </p>
+              </div>
+            </div>
           </span>
         </div>
       </nav>
       <div id="img_buttons_row">
-        <button
-          type="button"
-          class="btn is-disabled needs-google"
-          id="btn_my_likes"
-        >
-          <i class="ph-fill ph-heart"></i> my likes
-        </button>
-        <button type="button" class="btn btn-primary" id="btn_latest">
-          <i class="ph-fill ph-clock"></i> latest
-        </button>
-        <span id="load_img_buttons"></span>
+        <div class="cat-tabs">
+          <button
+            type="button"
+            class="btn is-disabled needs-google"
+            id="btn_my_likes"
+          >
+            <i class="ph-fill ph-heart"></i> my likes
+          </button>
+          <button type="button" class="btn btn-primary" id="btn_latest">
+            <i class="ph-fill ph-clock"></i> latest
+          </button>
+          <span id="load_img_buttons"></span>
+        </div>
         <span class="row-actions">
           <button
             type="button"
@@ -119,20 +146,6 @@
           multiple
           accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.svg,.mp4"
         />
-      </div>
-      <div id="version_info" style="display: none">
-        <div class="version-row">
-          <p class="note">
-            <span class="t-strong"
-              >sbbs (simple bulletin board system) - a tiny board for
-              sharing images</span
-            ><br />
-            <span class="t-muted"
-              >built with vanilla JS, Vite and Supabase</span
-            ><br />
-            <span id="version"></span>
-          </p>
-        </div>
       </div>
     </header>
     <main class="index-body">

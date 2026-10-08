@@ -123,6 +123,22 @@ const sentinel = document.createElement("div");
 sentinel.id = "scroll-sentinel";
 document.getElementById("images").after(sentinel);
 
+// 검색 결과 바: 검색 화면에서만 목록 위에 결과 수, 검색어, 지우기 버튼을 보여준다 (표시 여부는 updateActiveDir 가 정한다)
+const searchBar = document.createElement("div");
+searchBar.className = "search-bar";
+searchBar.hidden = true;
+searchBar.innerHTML =
+  '<span class="search-bar-text" role="status"></span>' +
+  '<button type="button" class="btn search-bar-clear" title="clear search" aria-label="clear search"><i class="ph-fill ph-x-circle"></i></button>';
+document.getElementById("images").before(searchBar);
+const searchBarText = searchBar.querySelector(".search-bar-text");
+searchBar.querySelector(".search-bar-clear").addEventListener("click", () => {
+  document.getElementById("search_input").value = "";
+  loadLatest();
+  // 누른 버튼이 사라지므로 포커스를 latest 탭으로 옮긴다
+  document.getElementById("btn_latest").focus({ preventScroll: true });
+});
+
 const sentinelLoadingHtml = loadingIndicatorHtml();
 
 // 화면 전환 시 즉시 sentinel 에 중앙 정렬된 로딩 인디케이터 표시 (#images 는 비움)
@@ -292,6 +308,37 @@ const renderCategoryButtons = () => {
 
 renderCategoryButtons();
 
+// 탭 줄(.cat-tabs)은 한 줄 가로 스크롤이라 선택된 탭이 화면 밖에 있을 수 있다.
+// scrollIntoView 는 페이지 세로 스크롤까지 움직일 수 있어 탭 줄의 가로 스크롤만 직접 맞춘다.
+// 가장자리 페이드에 가리지 않도록 탭 줄의 scroll-padding 안쪽까지 들인다.
+const revealTab = (tab) => {
+  const tabs = tab.closest(".cat-tabs");
+  if (!tabs) return;
+  const style = getComputedStyle(tabs);
+  const tabsRect = tabs.getBoundingClientRect();
+  const tabRect = tab.getBoundingClientRect();
+  const left = tabsRect.left + (Number.parseFloat(style.scrollPaddingLeft) || 0);
+  const right = tabsRect.right - (Number.parseFloat(style.scrollPaddingRight) || 0);
+  // scrollLeft 는 정수 px 로 맞춰지므로 소수점 이동은 바깥쪽으로 올려 탭이 경계에 걸치지 않게 한다
+  let delta = 0;
+  if (tabRect.left < left) delta = Math.floor(tabRect.left - left);
+  else if (tabRect.right > right) delta = Math.ceil(tabRect.right - right);
+  if (delta === 0) return;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  tabs.scrollBy({ left: delta, behavior: reduceMotion ? "auto" : "smooth" });
+};
+
+const revealActiveTab = () => {
+  const activeTab = document.querySelector("#img_buttons_row .btn-active");
+  if (activeTab) revealTab(activeTab);
+};
+
+// 탭 줄 폭이 바뀌면(admin 의 category 버튼이 늦게 나타나 줄이 좁아짐, 창 크기 변경) 활성 탭이 다시 가려지므로 다시 맞춘다.
+// 아이콘 폰트가 늦게 로드되면 줄 폭은 그대로인 채 탭 위치만 밀리므로 폰트 로드 뒤에도 한 번 맞춘다.
+// 크기 변화가 없으면 호출되지 않으므로 사용자가 직접 스크롤한 위치는 건드리지 않는다.
+new ResizeObserver(revealActiveTab).observe(document.querySelector(".cat-tabs"));
+document.fonts?.ready.then(revealActiveTab);
+
 const updateActiveDir = (dir) => {
   for (const d of imgDirs) {
     const btn = document.getElementById(`load_${toSafeId(d)}`);
@@ -303,6 +350,9 @@ const updateActiveDir = (dir) => {
   if (!myLikesBtn.classList.contains("needs-google")) {
     myLikesBtn.className = dir === "__my_likes__" ? "btn btn-active" : "btn btn-primary";
   }
+  revealActiveTab();
+  // 검색 결과 바는 검색 화면에서만. 다른 화면으로 가면 바로 숨긴다
+  searchBar.hidden = dir !== "__search__";
 };
 
 const loadDirFromHash = (info, force = false) => {
@@ -430,6 +480,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
 });
 
 // 검색 기능 (파일명 + 메시지 내용)
+const SEARCH_LIMIT = 50;
 const doSearch = async () => {
   const query = document.getElementById("search_input").value.trim();
   if (!query) return;
@@ -443,6 +494,8 @@ const doSearch = async () => {
   currentOffset = 0;
   imagePool = [];
 
+  const safeQuery = `<span class="t-strong">"${escapeHtml(query)}"</span>`;
+  searchBarText.innerHTML = `Searching for ${safeQuery}…`;
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML = skeletonHtml(viewMode);
 
@@ -453,13 +506,13 @@ const doSearch = async () => {
       .select("file_path")
       .ilike("display_name", `%${query}%`)
       .order("created_at", { ascending: false })
-      .limit(50),
+      .limit(SEARCH_LIMIT),
     supabase
       .from("image_messages")
       .select("image_name")
       .ilike("message", `%${query}%`)
       .order("created_at", { ascending: false })
-      .limit(50),
+      .limit(SEARCH_LIMIT),
   ]);
   if (gen !== loadGeneration) return;
 
@@ -467,6 +520,10 @@ const doSearch = async () => {
   const imgNames = [
     ...new Set([...(fileMatches || []).map((r) => r.file_path), ...(msgMatches || []).map((r) => r.image_name)]),
   ];
+  // 한쪽이라도 limit 에 닿았으면 더 있을 수 있으므로 + 를 붙인다
+  const truncated = fileMatches?.length === SEARCH_LIMIT || msgMatches?.length === SEARCH_LIMIT;
+  const count = `${imgNames.length}${truncated ? "+" : ""}`;
+  searchBarText.innerHTML = `${count} ${imgNames.length === 1 && !truncated ? "result" : "results"} for ${safeQuery}`;
 
   if (imgNames.length === 0) {
     imagesEl.innerHTML = emptyStateHtml(
@@ -598,7 +655,14 @@ const isTypingInField = () => {
   return false;
 };
 
-const hasOpenOverlay = () => document.querySelector(".img-overlay, dialog[open]") !== null;
+// 계정 메뉴(popover)가 열려 있는 동안에도 단축키를 막는다.
+// :popover-open 셀렉터는 미지원 브라우저에서 SyntaxError 이므로 toggle 이벤트로 열림 상태를 따라간다.
+let accountMenuOpen = false;
+document.getElementById("account_menu")?.addEventListener("toggle", (e) => {
+  accountMenuOpen = e.newState === "open";
+});
+
+const hasOpenOverlay = () => accountMenuOpen || document.querySelector(".img-overlay, dialog[open]") !== null;
 
 document.getElementById("btn_help")?.addEventListener("click", showShortcutsHelp);
 

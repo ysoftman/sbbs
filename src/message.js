@@ -1,5 +1,5 @@
 import { supabase } from "./common.js";
-import { escapeHtml, formatDate, makeDicebear, showAlert, showConfirm } from "./utils.js";
+import { escapeHtml, formatDateTime, formatRelativeTime, makeDicebear, showAlert, showConfirm } from "./utils.js";
 
 export const INITIAL_LIMIT = 10;
 const MORE_LIMIT = 5;
@@ -35,8 +35,8 @@ const deleteMessage = async (id) => {
   }
 };
 
+// 댓글 행: 아바타 | 이름 · 상대 시간(title 에 정확한 일시) / 다음 줄에 본문
 const renderMessageRow = (row, currentUserId, imageName, listId) => {
-  const date = formatDate(row.created_at);
   const user = escapeHtml(row.user_name || "Unknown");
   const msg = escapeHtml(row.message).replace(
     /(https?:\/\/[^\s<]+)/g,
@@ -44,12 +44,24 @@ const renderMessageRow = (row, currentUserId, imageName, listId) => {
   );
   const deleteBtn =
     currentUserId && row.user_id === currentUserId
-      ? ` <button class="btn btn-danger msg-delete-btn" data-msg-id="${row.id}" data-image-name="${escapeHtml(imageName)}" data-list-id="${escapeHtml(listId)}">x</button>`
+      ? `<button class="btn btn-danger msg-delete-btn" aria-label="delete comment" data-msg-id="${row.id}" data-image-name="${escapeHtml(imageName)}" data-list-id="${escapeHtml(listId)}">x</button>`
       : "";
   const seed = row.user_id || row.user_name || "Unknown";
-  const avatar = `<img class="msg-avatar" src="${makeDicebear(seed)}" title="dicebear pixel-art">`;
-  return `<div class="msg-item">${avatar}<span class="t-muted">${date}</span> <span class="t-strong">${user}</span> ${msg}${deleteBtn}</div>`;
+  const avatar = `<img class="msg-avatar" src="${makeDicebear(seed)}" alt="" title="dicebear pixel-art">`;
+  const time = row.created_at
+    ? `<time class="msg-time" datetime="${escapeHtml(row.created_at)}" title="${formatDateTime(row.created_at)}">${formatRelativeTime(row.created_at)}</time>`
+    : "";
+  return (
+    `<div class="msg-item">${avatar}<div class="msg-body">` +
+    `<div class="msg-head"><span class="msg-user">${user}</span>${time}${deleteBtn}</div>` +
+    `<div class="msg-text">${msg}</div></div></div>`
+  );
 };
+
+// 댓글이 없을 때 빈 영역 대신 보이는 안내. 비로그인은 currentUserId 가 없다.
+const emptyMessagesHtml = (currentUserId) =>
+  `<p class="msg-empty"><i class="ph-fill ph-chat-circle" aria-hidden="true"></i>` +
+  `${currentUserId ? "No comments yet" : "Log in to comment"}</p>`;
 
 // 조회된 메시지 렌더링 (limit 보다 1개 많으면 more 버튼 표시).
 // 초기 목록은 loadImages 가 image_info 임베드로 미리 받아온 rows 를 넘기므로 이미지별 요청이 없다.
@@ -58,9 +70,9 @@ export const renderMessages = (imageName, listId, currentUserId, data, offset = 
   if (!el) return;
   const limit = offset === 0 ? INITIAL_LIMIT : MORE_LIMIT;
   if (data.length === 0) {
-    // 초기 페이지가 비면(마지막 댓글 삭제 등) 남아 있는 목록을 비우고, 추가 페이지가 비면 more 버튼만 제거
+    // 초기 페이지가 비면(댓글 없음, 마지막 댓글 삭제) 안내로 바꾸고, 추가 페이지가 비면 more 버튼만 제거
     if (offset === 0) {
-      el.innerHTML = "";
+      el.innerHTML = emptyMessagesHtml(currentUserId);
     } else {
       el.querySelector(".msg-more")?.remove();
     }
@@ -81,10 +93,10 @@ export const renderMessages = (imageName, listId, currentUserId, data, offset = 
   // 삭제 버튼 이벤트 등록 (새로 추가된 버튼만)
   for (const btn of el.querySelectorAll(".msg-delete-btn:not([data-bound])")) {
     btn.dataset.bound = "1";
-    btn.addEventListener("click", async (e) => {
+    btn.addEventListener("click", async () => {
       if (!(await showConfirm("delete?"))) return;
-      await deleteMessage(e.target.dataset.msgId);
-      await loadMessages(e.target.dataset.imageName, e.target.dataset.listId, currentUserId);
+      await deleteMessage(btn.dataset.msgId);
+      await loadMessages(btn.dataset.imageName, btn.dataset.listId, currentUserId);
     });
   }
   // 더보기 버튼
