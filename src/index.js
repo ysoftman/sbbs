@@ -674,7 +674,8 @@ document.getElementById("file_input").addEventListener("change", async (e) => {
   const files = e.target.files;
   if (!files || files.length === 0) return;
   const uploadBtn = document.getElementById("btn_upload");
-  const originalText = uploadBtn.textContent;
+  // 아이콘까지 되돌리도록 textContent 가 아닌 innerHTML 을 보관한다
+  const originalHtml = uploadBtn.innerHTML;
   let uploaded = 0;
   uploadBtn.disabled = true;
   try {
@@ -697,7 +698,7 @@ document.getElementById("file_input").addEventListener("change", async (e) => {
       refreshImageCount();
     }
   } finally {
-    uploadBtn.textContent = originalText;
+    uploadBtn.innerHTML = originalHtml;
     uploadBtn.disabled = false;
     e.target.value = "";
   }
