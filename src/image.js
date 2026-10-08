@@ -110,6 +110,20 @@ const showImageOverlay = (url, name, displayName) => {
   });
 };
 
+// 목록 안의 썸네일·제목 클릭은 hash 를 바꾸지 않고 오버레이만 연다.
+// hash 로 이동하면 latest/검색/my likes 에서 카테고리 화면으로 바뀌고, 같은 링크를 다시 눌러도 hashchange 가 없어 열리지 않는다.
+// 새 탭/창 열기(⌘·Ctrl·Shift 클릭)는 링크 기본 동작에 맡긴다.
+const bindOverlayOpen = (el, name, displayName) => {
+  el?.addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+    showImageOverlay(publicUrl, name, displayName);
+  });
+};
+
 // 딥링크(#dir/file) 로 들어온 경우 목록 스크롤 대신 해당 파일만 오버레이로 보여준다
 export const showOverlayByName = async (name) => {
   const {
@@ -167,7 +181,7 @@ const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet, displayNa
   const msgId = toSafeId(name);
 
   const mediaHtml = isImage
-    ? `<img class="grid-thumb" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`
+    ? `<img class="grid-thumb" loading="lazy" src="${publicUrl}" alt="${escapeHtml(displayName)}">`
     : `<video class="grid-thumb" muted preload="metadata"><source type="video/mp4" src="${publicUrl}"></video>`;
 
   return (
@@ -180,20 +194,12 @@ const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet, displayNa
   );
 };
 
-// 그리드 모드 이벤트 핸들러 (썸네일 클릭 → 오버레이, 좋아요)
+// 그리드 모드 이벤트 핸들러 (썸네일·제목 클릭 → 오버레이, 좋아요). 영상 썸네일도 오버레이에서 재생한다.
 const setupGridHandlers = (name, currentUser, displayName) => {
-  const msgId = toSafeId(name);
-  const card = document.getElementById(`grid_${msgId}`);
+  const card = document.getElementById(`grid_${toSafeId(name)}`);
   if (!card) return;
-  const isImage = !isVideoName(name);
-  if (isImage) {
-    const thumb = card.querySelector(".grid-thumb");
-    if (thumb) {
-      thumb.addEventListener("click", () => {
-        showImageOverlay(thumb.dataset.url, thumb.dataset.name, displayName);
-      });
-    }
-  }
+  bindOverlayOpen(card.querySelector(".grid-thumb"), name, displayName);
+  bindOverlayOpen(card.querySelector(".grid-card-name"), name, displayName);
   setupLikeHandler(name, currentUser);
 };
 
@@ -228,7 +234,7 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
   const moveHtml = `<span class="img-file-move" id="file_move_${msgId}" style="display:none"></span>`;
   const deleteHtml = `<span class="img-file-delete" id="file_del_${msgId}" style="display:none"></span>`;
   if (isImage) {
-    const mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`;
+    const mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" alt="${escapeHtml(displayName)}">`;
     return (
       `<div class="card">` +
       `<p class="title"><a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName)}</a> <span id="${msgId}_img_size"></span> ${metaHtml} ${likeHtml} ${moveHtml} ${deleteHtml}</p>` +
@@ -248,15 +254,15 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
   const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
   const id = isImage ? `${msgId}_img` : `${msgId}_video`;
-  if (document.getElementById(id) == null) {
+  const mediaEl = document.getElementById(id);
+  if (mediaEl == null) {
     return;
   }
+  bindOverlayOpen(mediaEl.closest(".card").querySelector(".img-link"), name, displayName);
   if (isImage) {
-    const thumbEl = document.getElementById(id).querySelector(".thumbnail");
+    const thumbEl = mediaEl.querySelector(".thumbnail");
     if (thumbEl) {
-      thumbEl.addEventListener("click", () => {
-        showImageOverlay(thumbEl.dataset.url, thumbEl.dataset.name, displayName);
-      });
+      bindOverlayOpen(thumbEl, name, displayName);
       // 이미지 크기 표시는 별도 Image 객체로 다시 받지 않고 lazy 로딩되는 썸네일 자체의 load 를 사용한다
       const onThumbLoad = () => {
         const sizeEl = document.getElementById(`${msgId}_img_size`);
