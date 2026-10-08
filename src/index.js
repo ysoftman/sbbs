@@ -23,7 +23,8 @@ const getPageSize = () => (viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE
 let currentDir = "";
 let currentOffset = 0;
 let allImagesLoaded = false;
-let latestPool = [];
+// latest / my likes / 검색처럼 전체 목록을 먼저 받는 화면의 목록. 카테고리 화면은 storage 페이지네이션을 쓰므로 비어 있다.
+let imagePool = [];
 let loadedDir = "";
 // loadImg/loadLatest 가 호출될 때마다 증가. 진행 중인 loadMoreImages 가 stale 인지 식별한다.
 let loadGeneration = 0;
@@ -46,7 +47,7 @@ async function loadImg(path) {
   currentOffset = 0;
   // 로딩 중 loadMoreImages 가 발화하지 않도록 true
   allImagesLoaded = true;
-  latestPool = [];
+  imagePool = [];
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML = "";
   // sentinel 을 로딩 인디케이터로 사용 (중앙 정렬, 단일 표시)
@@ -81,11 +82,11 @@ async function loadMoreImages() {
 
   try {
     const pageSize = getPageSize();
-    if (loadedDir === "__latest__" && latestPool.length > 0) {
-      // 최신순 모드: 풀에서 다음 페이지 가져오기
-      const next = latestPool.slice(currentOffset, currentOffset + pageSize);
+    if (imagePool.length > 0) {
+      // 풀 모드: 풀에서 다음 페이지 가져오기
+      const next = imagePool.slice(currentOffset, currentOffset + pageSize);
       currentOffset += next.length;
-      allImagesLoaded = currentOffset >= latestPool.length;
+      allImagesLoaded = currentOffset >= imagePool.length;
       if (next.length > 0) {
         const imgNames = next.map((f) => f.name);
         const metaMap = buildMetaMap(next);
@@ -314,6 +315,19 @@ const loadDirFromHash = (info, force = false) => {
   return true;
 };
 
+// 전체 목록(pool)의 첫 페이지를 그린다. 나머지는 loadMoreImages 가 pool 에서 페이지 단위로 꺼낸다.
+// pool 항목은 { name, created_at?, size? } (my likes / 검색은 name 만 있다)
+const loadPool = async (gen, pool) => {
+  imagePool = pool;
+  const first = pool.slice(0, getPageSize());
+  currentOffset = first.length;
+  allImagesLoaded = currentOffset >= pool.length;
+  const imgNames = first.map((f) => f.name);
+  await loadImages("images", imgNames, buildMetaMap(first), false, viewMode, staleChecker(gen));
+  if (gen !== loadGeneration) return;
+  updateSentinel();
+};
+
 // 최신 이미지 로드 (전체 카테고리 통합, 최신순)
 const loadLatest = async () => {
   loadGeneration++;
@@ -322,7 +336,7 @@ const loadLatest = async () => {
   updateActiveDir("__latest__");
   loadedDir = "__latest__";
   currentOffset = 0;
-  latestPool = [];
+  imagePool = [];
   // 로딩 중 loadMoreImages 가 발화하지 않도록 true
   allImagesLoaded = true;
 
@@ -331,13 +345,9 @@ const loadLatest = async () => {
   // sentinel 을 로딩 인디케이터로 사용 (중앙 정렬, 단일 표시)
   showSentinelLoading();
 
-  // 모든 카테고리에서 이미지 목록을 가져와서 최신순 정렬
-  const allFiles = [];
-  for (const dir of imgDirs) {
-    const files = await getImageList(dir, 0, 1000);
-    if (gen !== loadGeneration) return;
-    allFiles.push(...files);
-  }
+  // 모든 카테고리에서 이미지 목록을 동시에 가져와서 최신순 정렬 (카테고리당 최대 1000개)
+  const allFiles = (await Promise.all(imgDirs.map((dir) => getImageList(dir, 0, 1000)))).flat();
+  if (gen !== loadGeneration) return;
   allFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (allFiles.length === 0) {
@@ -347,17 +357,7 @@ const loadLatest = async () => {
     return;
   }
 
-  latestPool = allFiles;
-  const pageSize = getPageSize();
-  const first = latestPool.slice(0, pageSize);
-  currentOffset = first.length;
-  allImagesLoaded = latestPool.length <= pageSize;
-  const imgNames = first.map((f) => f.name);
-  const metaMap = buildMetaMap(first);
-
-  await loadImages("images", imgNames, metaMap, false, viewMode, staleChecker(gen));
-  if (gen !== loadGeneration) return;
-  updateSentinel();
+  await loadPool(gen, allFiles);
 };
 
 document.getElementById("btn_latest").addEventListener("click", loadLatest);
@@ -398,6 +398,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   loadedDir = "__my_likes__";
   allImagesLoaded = true;
   currentOffset = 0;
+  imagePool = [];
 
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML = skeletonHtml(viewMode);
@@ -420,11 +421,10 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
     return;
   }
 
-  const imgNames = likes.map((l) => l.image_name);
-  if (gen !== loadGeneration) return;
-  await loadImages("images", imgNames, {}, false, viewMode, staleChecker(gen));
-  if (gen !== loadGeneration) return;
-  updateSentinel();
+  await loadPool(
+    gen,
+    likes.map((l) => ({ name: l.image_name })),
+  );
 });
 
 // 검색 기능 (파일명 + 메시지 내용)
@@ -439,42 +439,32 @@ const doSearch = async () => {
   loadedDir = "__search__";
   allImagesLoaded = true;
   currentOffset = 0;
+  imagePool = [];
 
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML = skeletonHtml(viewMode);
 
-  // 파일명 검색 (display_name 은 원본 파일명을 그대로 저장하므로 검색어를 그대로 사용해 매칭)
-  const { data: fileMatches } = await supabase
-    .from("image_info")
-    .select("file_path, display_name")
-    .ilike("display_name", `%${query}%`)
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  // 메시지 내용 검색
-  const { data: msgMatches } = await supabase
-    .from("image_messages")
-    .select("image_name")
-    .ilike("message", `%${query}%`)
-    .order("created_at", { ascending: false })
-    .limit(50);
+  // 파일명(display_name 은 원본 파일명이라 검색어를 그대로 매칭) + 메시지 내용 검색을 동시에
+  const [{ data: fileMatches }, { data: msgMatches }] = await Promise.all([
+    supabase
+      .from("image_info")
+      .select("file_path")
+      .ilike("display_name", `%${query}%`)
+      .order("created_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("image_messages")
+      .select("image_name")
+      .ilike("message", `%${query}%`)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
   if (gen !== loadGeneration) return;
 
-  // 결과 합치기 (중복 제거, 파일명 검색 우선)
-  const seen = new Set();
-  const imgNames = [];
-  for (const row of fileMatches || []) {
-    if (!seen.has(row.file_path)) {
-      seen.add(row.file_path);
-      imgNames.push(row.file_path);
-    }
-  }
-  for (const row of msgMatches || []) {
-    if (!seen.has(row.image_name)) {
-      seen.add(row.image_name);
-      imgNames.push(row.image_name);
-    }
-  }
+  // 결과 합치기 (Set 이 삽입 순서를 유지하므로 중복 제거 + 파일명 검색 우선)
+  const imgNames = [
+    ...new Set([...(fileMatches || []).map((r) => r.file_path), ...(msgMatches || []).map((r) => r.image_name)]),
+  ];
 
   if (imgNames.length === 0) {
     imagesEl.innerHTML = emptyStateHtml(
@@ -486,10 +476,10 @@ const doSearch = async () => {
     return;
   }
 
-  if (gen !== loadGeneration) return;
-  await loadImages("images", imgNames, {}, false, viewMode, staleChecker(gen));
-  if (gen !== loadGeneration) return;
-  updateSentinel();
+  await loadPool(
+    gen,
+    imgNames.map((name) => ({ name })),
+  );
 };
 
 document.getElementById("btn_search").addEventListener("click", doSearch);

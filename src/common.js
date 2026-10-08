@@ -48,13 +48,11 @@ supabase.auth.onAuthStateChange((_event, session) => {
 });
 
 // supabase > authentication > 익명 로그인 활성화했음
+// 버튼 UI 는 onAuthStateChange 가 갱신하고 logout/로그인 후에는 reload 하므로 여기서 직접 바꾸지 않는다.
 const loginAnonymous = async () => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (user?.is_anonymous) {
     await logout();
-    document.getElementById(loginAnonymousBoxID).innerHTML = "login Anonymous";
     return;
   }
   const { error } = await supabase.auth.signInAnonymously();
@@ -62,18 +60,12 @@ const loginAnonymous = async () => {
     console.warn("signInAnonymously error:", error);
     return;
   }
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  document.getElementById(loginAnonymousBoxID).innerHTML = makeLogoutBoxHTML("", session?.user?.id);
   window.location.reload();
 };
 
 // 구글 로그인하기
 const loginGoogle = async () => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   // 이미 구글 로그인된 상태면 로그아웃
   if (user?.email) {
     await logout();
