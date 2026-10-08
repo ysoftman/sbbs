@@ -1,4 +1,4 @@
-import { getCurrentUser, getUserName, supabase } from "./common.js";
+import { getCurrentUser, getUserName, isAdmin, supabase } from "./common.js";
 import { INITIAL_LIMIT, loadMessages, renderMessages, saveMessage } from "./message.js";
 import { deleteFile, getImageDirs, moveFile, STORAGE_BUCKET } from "./storage.js";
 import { supabaseUrl } from "./supabase_config.js";
@@ -16,12 +16,6 @@ import {
   showDirPicker,
   toSafeId,
 } from "./utils.js";
-
-// admin 상태 캐싱 (세션 내 변경 없음)
-let cachedAdminStatus = null;
-supabase.auth.onAuthStateChange(() => {
-  cachedAdminStatus = null;
-});
 
 // 공유용 링크 생성: og-preview Edge Function 이 있으면 크롤러가 OG 메타를 읽을 수 있도록 그 URL 을,
 // 없으면 SPA 해시 딥링크를 복사한다. Edge Function 은 사용자를 SPA 로 자동 리다이렉트한다.
@@ -425,21 +419,10 @@ export const loadImages = async (
     const item = buildImageHtml(name, metaMap, uploaderMap, publicUrl, likeCountMap, userLikeSet, displayNameOf(name));
     document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
   }
-  let isAdmin = false;
-  if (currentUser) {
-    if (cachedAdminStatus === null) {
-      const { data: adminRow } = await supabase
-        .from("admins")
-        .select("user_id")
-        .eq("user_id", currentUser.id)
-        .maybeSingle();
-      cachedAdminStatus = !!adminRow;
-    }
-    isAdmin = cachedAdminStatus;
-  }
+  const admin = await isAdmin();
   if (isStale()) return;
 
   for (const name of imageNames) {
-    setupImageHandlers(name, currentUser, isAdmin, uploaderMap, messageMap, displayNameOf(name));
+    setupImageHandlers(name, currentUser, admin, uploaderMap, messageMap, displayNameOf(name));
   }
 };

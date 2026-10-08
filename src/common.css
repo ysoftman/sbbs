@@ -885,6 +885,11 @@ img.thumbnail:hover {
   overflow-y: auto;
 }
 
+.dialog-input {
+  width: 100%;
+  margin-top: 12px;
+}
+
 .dialog-message {
   word-break: break-word;
   white-space: pre-wrap;

@@ -16,6 +16,17 @@ const currentUserPromise = supabase.auth.getUser().then(({ data }) => {
 });
 export const getCurrentUser = () => (currentUserReady ? Promise.resolve(currentUser) : currentUserPromise);
 
+// admin 여부. 로그인 상태가 바뀌면 페이지를 reload 하므로 세션 동안 한 번만 조회한다.
+let adminPromise = null;
+export const isAdmin = () => {
+  adminPromise ??= getCurrentUser().then(async (user) => {
+    if (!user) return false;
+    const { data } = await supabase.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
+    return !!data;
+  });
+  return adminPromise;
+};
+
 // 화면/DB 에 남길 사용자 이름 (로그인 버튼, 댓글, 업로드 공통)
 export const getUserName = (user) =>
   user.is_anonymous ? "Anonymous" : user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown";

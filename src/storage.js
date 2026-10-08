@@ -1,7 +1,9 @@
-import { getCurrentUser, getUserName, supabase } from "./common.js";
+import { getCurrentUser, getUserName, isAdmin, supabase } from "./common.js";
 import { formatCount, formatFileSize, showAlert } from "./utils.js";
 
 export const STORAGE_BUCKET = "images";
+// Storage 는 빈 폴더를 따로 만들 수 없어 Dashboard 처럼 이 이름의 빈 파일로 카테고리를 유지한다
+const FOLDER_PLACEHOLDER = ".emptyFolderPlaceholder";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_VIDEO_SIZE = 10 * 1024 * 1024; // 10MB
@@ -38,9 +40,9 @@ export const getImageList = async (path, offset = 0, limit = 1000) => {
     console.warn("getImageList error:", error);
     return [];
   }
-  // 파일은 id가 null이 아닌 항목
+  // 파일은 id가 null이 아닌 항목 (카테고리 placeholder 제외. 가장 오래된 항목이라 페이지네이션 hasMore 판정에 영향 없음)
   const files = data
-    .filter((item) => item.id !== null)
+    .filter((item) => item.id !== null && item.name !== FOLDER_PLACEHOLDER)
     .map((item) => ({
       name: path === "" || path === "/" ? item.name : `${path}/${item.name}`,
       created_at: item.created_at,
@@ -91,6 +93,16 @@ export const moveFile = async (oldPath, newDir) => {
   return newPath;
 };
 
+// 빈 카테고리 생성 (admin 전용 UI)
+export const createDir = async (dir) => {
+  const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(`${dir}/${FOLDER_PLACEHOLDER}`, new Blob([]));
+  if (error) {
+    await showAlert(`Create category error: ${error.message}`);
+    return false;
+  }
+  return true;
+};
+
 // 파일 삭제 (storage + metadata, 본인 업로드만)
 export const deleteFile = async (filePath) => {
   const user = await getCurrentUser();
@@ -99,8 +111,7 @@ export const deleteFile = async (filePath) => {
     return false;
   }
   // admin 또는 본인 업로드 파일인지 확인
-  const { data: adminRow } = await supabase.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
-  if (!adminRow) {
+  if (!(await isAdmin())) {
     const { data: uploadRow } = await supabase.from("image_info").select("user_id").eq("file_path", filePath).single();
     if (!uploadRow || uploadRow.user_id !== user.id) {
       await showAlert("You can only delete files you uploaded");

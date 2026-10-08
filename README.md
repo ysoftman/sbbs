@@ -9,6 +9,7 @@ Image/video gallery web app using Supabase Storage, Auth, and Database.
 - Per-image comments: create/delete (10,000 bytes limit, load more in batches of 5)
 - File upload (images 5MB, mp4 10MB, with directory selection)
 - Delete your own uploaded files; admins can delete any file
+- Admins can add (empty) categories
 - URL hash-based deep linking (`#category`, `#category/filename`)
 
 ## Initial Setup After Creating a Supabase Project

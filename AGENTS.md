@@ -40,7 +40,7 @@ Single entry point: `index.html` → `src/index.js`. All DOM manipulation is han
 
 ## Data Architecture
 
-- Storage bucket `images`: files live under category "directories". In `storage.list()` results, **folders have `id === null`, files have non-null `id`**.
+- Storage bucket `images`: files live under category "directories". In `storage.list()` results, **folders have `id === null`, files have non-null `id`**. An empty category is kept alive by a `.emptyFolderPlaceholder` object (created by the admin "category" button, `createDir`); `getImageList` filters it out.
 - `image_info` table: keyed by `file_path` (UNIQUE), holds `user_id`, `user_name`, `display_name`.
 - `image_messages` and `image_likes` reference `image_info.file_path` with **ON DELETE/UPDATE CASCADE** — deleting/moving a file only requires touching storage + `image_info`; related rows follow automatically.
 - `admins` table: admin check is `EXISTS (SELECT 1 FROM admins WHERE user_id = auth.uid())`.

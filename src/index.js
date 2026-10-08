@@ -2,9 +2,9 @@ import "./common.js";
 import "@phosphor-icons/web/fill";
 import "./common.css";
 
-import { getCurrentUser, supabase } from "./common.js";
+import { getCurrentUser, isAdmin, supabase } from "./common.js";
 import { loadImages, showOverlayByName } from "./image.js";
-import { getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
+import { createDir, getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
 import {
   emptyStateHtml,
   escapeHtml,
@@ -496,6 +496,38 @@ document.getElementById("btn_upload").addEventListener("click", (e) => {
     setUploadDir(dir);
     document.getElementById("file_input").click();
   });
+});
+
+// admin 전용: 빈 카테고리 추가. 카테고리명은 Storage 경로가 되므로 기존 카테고리처럼 ASCII 소문자/숫자/- 만 허용한다.
+const CATEGORY_NAME = /^[a-z0-9-]+$/;
+const addCategoryBtn = document.getElementById("btn_add_category");
+isAdmin().then((admin) => {
+  if (admin) addCategoryBtn.style.display = "";
+});
+addCategoryBtn.addEventListener("click", async () => {
+  const { dialog, closed } = openDialog(
+    "<p>new category</p>" +
+      '<form method="dialog">' +
+      '<input class="input dialog-input" placeholder="a-z, 0-9, -" autocomplete="off" autofocus>' +
+      '<div class="dialog-buttons"><button class="btn btn-primary" value="ok">add</button>' +
+      '<button class="btn" value="">cancel</button></div></form>',
+  );
+  if ((await closed) !== "ok") return;
+  const dir = dialog.querySelector("input").value.trim();
+  if (!dir) return;
+  if (!CATEGORY_NAME.test(dir)) {
+    await showAlert("Use lowercase letters, digits and - only");
+    return;
+  }
+  if (imgDirs.includes(dir)) {
+    await showAlert(`"${dir}" already exists`);
+    return;
+  }
+  if (!(await createDir(dir))) return;
+  imgDirs.push(dir);
+  renderCategoryButtons();
+  // hashchange 로 새 카테고리(빈 상태 안내)로 이동
+  location.hash = encodeURIComponent(dir);
 });
 
 // 키보드 단축키
