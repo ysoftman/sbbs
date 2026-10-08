@@ -22,12 +22,14 @@ const getPageSize = () => (viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE
 
 let currentDir = "";
 let currentOffset = 0;
-let isLoadingMore = false;
 let allImagesLoaded = false;
 let latestPool = [];
 let loadedDir = "";
 // loadImg/loadLatest 가 호출될 때마다 증가. 진행 중인 loadMoreImages 가 stale 인지 식별한다.
 let loadGeneration = 0;
+const staleChecker = (gen) => () => gen !== loadGeneration;
+// 추가 로드 중인 generation. stale 요청이 새 화면의 추가 로드를 막지 않도록 generation 단위로 잠근다.
+let loadingMoreGen = -1;
 
 const buildMetaMap = (files) => {
   const metaMap = {};
@@ -59,17 +61,23 @@ async function loadImg(path) {
   allImagesLoaded = !hasMore;
   currentOffset = filesToLoad.length;
 
+  if (filesToLoad.length === 0) {
+    imagesEl.innerHTML = emptyStateHtml("image", "Nothing here yet", "Upload an image to start this category.");
+    updateSentinel();
+    return;
+  }
+
   const imgNames = filesToLoad.map((f) => f.name);
   const metaMap = buildMetaMap(filesToLoad);
-  await loadImages("images", imgNames, metaMap, false, viewMode);
+  await loadImages("images", imgNames, metaMap, false, viewMode, staleChecker(gen));
   if (gen !== loadGeneration) return;
   updateSentinel();
 }
 
 async function loadMoreImages() {
-  if (isLoadingMore || allImagesLoaded) return;
-  isLoadingMore = true;
+  if (loadingMoreGen === loadGeneration || allImagesLoaded) return;
   const gen = loadGeneration;
+  loadingMoreGen = gen;
 
   try {
     const pageSize = getPageSize();
@@ -82,7 +90,7 @@ async function loadMoreImages() {
         const imgNames = next.map((f) => f.name);
         const metaMap = buildMetaMap(next);
         if (gen !== loadGeneration) return;
-        await loadImages("images", imgNames, metaMap, true, viewMode);
+        await loadImages("images", imgNames, metaMap, true, viewMode, staleChecker(gen));
         if (gen !== loadGeneration) return;
       }
     } else {
@@ -97,12 +105,12 @@ async function loadMoreImages() {
       if (filesToLoad.length > 0) {
         const imgNames = filesToLoad.map((f) => f.name);
         const metaMap = buildMetaMap(filesToLoad);
-        await loadImages("images", imgNames, metaMap, true, viewMode);
+        await loadImages("images", imgNames, metaMap, true, viewMode, staleChecker(gen));
         if (gen !== loadGeneration) return;
       }
     }
   } finally {
-    isLoadingMore = false;
+    if (loadingMoreGen === gen) loadingMoreGen = -1;
     if (gen === loadGeneration) updateSentinel();
   }
 }
@@ -218,12 +226,14 @@ if (imgDirs.length === 0) {
 getViewCnt("ysoftman", "viewcnt");
 
 // 전체 이미지 수 표시
-supabase
-  .from("image_info")
-  .select("id", { count: "exact", head: true })
-  .then(({ count }) => {
-    document.getElementById("imgcnt").textContent = formatCount(count);
-  });
+const refreshImageCount = () =>
+  supabase
+    .from("image_info")
+    .select("id", { count: "exact", head: true })
+    .then(({ count }) => {
+      document.getElementById("imgcnt").textContent = formatCount(count);
+    });
+refreshImageCount();
 
 // 카테고리 버튼 렌더링: 항상 전체 표시, 드래그로 순서 조정 (localStorage 저장)
 const CAT_ORDER_KEY = "sbbs-cat-order";
@@ -331,7 +341,7 @@ const loadLatest = async () => {
   allFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (allFiles.length === 0) {
-    imagesEl.innerHTML = emptyStateHtml("image", "Nothing here yet", "Upload an image to start this category.");
+    imagesEl.innerHTML = emptyStateHtml("image", "Nothing here yet", "Upload an image to get started.");
     allImagesLoaded = true;
     updateSentinel();
     return;
@@ -345,7 +355,7 @@ const loadLatest = async () => {
   const imgNames = first.map((f) => f.name);
   const metaMap = buildMetaMap(first);
 
-  await loadImages("images", imgNames, metaMap, false, viewMode);
+  await loadImages("images", imgNames, metaMap, false, viewMode, staleChecker(gen));
   if (gen !== loadGeneration) return;
   updateSentinel();
 };
@@ -412,7 +422,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
 
   const imgNames = likes.map((l) => l.image_name);
   if (gen !== loadGeneration) return;
-  await loadImages("images", imgNames, {}, false, viewMode);
+  await loadImages("images", imgNames, {}, false, viewMode, staleChecker(gen));
   if (gen !== loadGeneration) return;
   updateSentinel();
 });
@@ -470,14 +480,14 @@ const doSearch = async () => {
     imagesEl.innerHTML = emptyStateHtml(
       "magnifying-glass",
       `No results for "${escapeHtml(query)}"`,
-      "Search matches file names. Try a shorter word.",
+      "Search matches file names and comments. Try a shorter word.",
     );
     updateSentinel();
     return;
   }
 
   if (gen !== loadGeneration) return;
-  await loadImages("images", imgNames, {}, false, viewMode);
+  await loadImages("images", imgNames, {}, false, viewMode, staleChecker(gen));
   if (gen !== loadGeneration) return;
   updateSentinel();
 };
@@ -717,7 +727,11 @@ document.getElementById("file_input").addEventListener("change", async (e) => {
       if (success) uploaded++;
     }
     if (uploaded > 0) {
-      await loadImg(uploadDir || currentDir);
+      // loadImg 만 부르면 loadedDir/활성 버튼/hash 가 이전 화면(latest 등)에 머무르므로 라우팅을 거친다
+      const dir = uploadDir || currentDir;
+      history.replaceState(null, "", `#${encodeURIComponent(dir)}`);
+      loadDirFromHash({ dir, image: null }, true);
+      refreshImageCount();
     }
   } finally {
     uploadBtn.textContent = originalText;

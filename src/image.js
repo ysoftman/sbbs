@@ -365,7 +365,7 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
       delEl.style.display = "";
       delEl.innerHTML = `<button class="btn btn-danger img-file-delete-btn">x</button>`;
       delEl.querySelector(".img-file-delete-btn").addEventListener("click", async () => {
-        if (!(await showConfirm(`delete "${name}"?`))) return;
+        if (!(await showConfirm(`delete "${displayName}"?`))) return;
         const deleted = await deleteFile(name);
         if (deleted) {
           const container = delEl.closest(".card");
@@ -448,7 +448,7 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
           const saved = await saveMessage(name, textarea.value, userName, currentUser.id);
           if (!saved) return;
           textarea.value = "";
-          charcountEl.textContent = `0/${MAX_MSG_BYTES} bytes`;
+          charcountEl.textContent = `0/${MAX_MSG_BYTES.toLocaleString()} bytes`;
           statusEl.innerHTML = "saved!";
           await loadMessages(name, `msg_list_${msgId}`, currentUser.id);
           setTimeout(() => {
@@ -463,11 +463,18 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
   }
 };
 
-export const loadImages = async (htmlId, imageNames, metaMap = {}, append = false, viewMode = "list") => {
-  if (!append) document.getElementById(htmlId).innerHTML = "";
-
+// isStale: 호출 측 loadGeneration 비교 함수. 내부 await 사이에 화면이 바뀌었으면 렌더하지 않고 끝낸다.
+export const loadImages = async (
+  htmlId,
+  imageNames,
+  metaMap = {},
+  append = false,
+  viewMode = "list",
+  isStale = () => false,
+) => {
   // 로그인 상태 확인 (admin 여부는 캐싱)
   const currentUser = await getCurrentUser();
+  if (isStale()) return;
   const isGrid = viewMode === "grid";
 
   // image_info 한 번의 조회에 좋아요(+리스트 모드는 최신 댓글)를 임베드해 페이지 단위로 가져온다.
@@ -490,6 +497,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
         .limit(INITIAL_LIMIT + 1, { referencedTable: "image_messages" });
     }
     const { data, error } = await query;
+    if (isStale()) return;
     if (error) console.warn("image_info error:", error);
     for (const row of data || []) {
       uploaderMap[row.file_path] = row;
@@ -499,6 +507,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
     }
   }
   const displayNameOf = (name) => uploaderMap[name]?.display_name || name.split("/").pop();
+  if (!append) document.getElementById(htmlId).innerHTML = "";
 
   if (isGrid) {
     // 그리드 모드: 간략 카드, 댓글/업로더 정보 스킵
@@ -535,6 +544,7 @@ export const loadImages = async (htmlId, imageNames, metaMap = {}, append = fals
     }
     isAdmin = cachedAdminStatus;
   }
+  if (isStale()) return;
 
   for (const name of imageNames) {
     setupImageHandlers(name, currentUser, isAdmin, uploaderMap, messageMap, displayNameOf(name));

@@ -13,6 +13,7 @@
 //   STORAGE_BUCKET (선택) 기본값 "images"
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SITE_URL = Deno.env.get("SITE_URL") ?? "";
 const STORAGE_BUCKET = Deno.env.get("STORAGE_BUCKET") ?? "images";
 
@@ -34,8 +35,25 @@ const buildSpaUrl = (path: string): string => {
 const CRAWLER_UA =
   /facebookexternalhit|Facebot|Twitterbot|Slackbot|LinkedInBot|Discordbot|TelegramBot|WhatsApp|SkypeUriPreview|kakaotalk-scrap|Daumoa|Googlebot|bingbot|Applebot|Embedly|redditbot|iframely|Pinterest|vkShare|Line|MattermostBot|Mastodon|Bytespider|PetalBot/i;
 
-const renderHtml = (path: string, selfUrl: string): string => {
-  const title = path.split("/").pop() ?? path;
+// 업로드 파일은 ASCII storage key 로 저장되므로 제목은 image_info.display_name(원본 파일명)을 쓴다.
+// 조회 실패 시 storage key 의 파일명으로 대체한다.
+const fetchDisplayName = async (path: string): Promise<string> => {
+  const fallback = path.split("/").pop() ?? path;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/image_info?select=display_name&file_path=eq.${encodeURIComponent(path)}`,
+      { headers: { apikey: SUPABASE_ANON_KEY }, signal: AbortSignal.timeout(2000) },
+    );
+    if (!res.ok) return fallback;
+    const rows: { display_name: string }[] = await res.json();
+    return rows[0]?.display_name || fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const renderHtml = (path: string, selfUrl: string, title: string): string => {
+  const description = `${path.slice(0, path.lastIndexOf("/") + 1)}${title}`;
   const imageUrl = buildPublicUrl(path);
   const spaUrl = buildSpaUrl(path);
   const isVideo = path.toLowerCase().endsWith(".mp4");
@@ -49,10 +67,10 @@ const renderHtml = (path: string, selfUrl: string): string => {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} - sbbs</title>
-<meta name="description" content="${escapeHtml(path)}">
+<meta name="description" content="${escapeHtml(description)}">
 <meta property="og:type" content="${ogType}">
 <meta property="og:title" content="${escapeHtml(title)}">
-<meta property="og:description" content="${escapeHtml(path)}">
+<meta property="og:description" content="${escapeHtml(description)}">
 <meta property="og:url" content="${escapeHtml(selfUrl)}">
 <meta property="og:image" content="${escapeHtml(imageUrl)}">
 <meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}">
@@ -60,7 +78,7 @@ const renderHtml = (path: string, selfUrl: string): string => {
 ${isVideo ? `<meta property="og:video" content="${escapeHtml(imageUrl)}">\n<meta property="og:video:secure_url" content="${escapeHtml(imageUrl)}">\n<meta property="og:video:type" content="video/mp4">` : ""}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escapeHtml(title)}">
-<meta name="twitter:description" content="${escapeHtml(path)}">
+<meta name="twitter:description" content="${escapeHtml(description)}">
 <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
 <link rel="canonical" href="${escapeHtml(selfUrl)}">
 </head>
@@ -71,7 +89,7 @@ ${isVideo ? `<meta property="og:video" content="${escapeHtml(imageUrl)}">\n<meta
 </html>`;
 };
 
-Deno.serve((req: Request) => {
+Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const path = url.searchParams.get("p");
   if (!path) {
@@ -100,7 +118,7 @@ Deno.serve((req: Request) => {
       },
     });
   }
-  return new Response(renderHtml(path, selfUrl), {
+  return new Response(renderHtml(path, selfUrl, await fetchDisplayName(path)), {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
