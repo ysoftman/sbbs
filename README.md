@@ -56,19 +56,8 @@ cp .env.example .env
 
 ### Storage Policy Setup
 
-Storage > Policies > images bucket > New policy:
-
-- Policy name: `read image`
-- Allowed operation: check SELECT (allows download, list, createSignedUrl, createSignedUrls, getPublicUrl)
-- Target roles: default (all public roles)
-- Policy definition: `bucket_id = 'images'`
-
-Add a second policy to restrict uploads to Google-authenticated users (anonymous users are blocked):
-
-- Policy name: `upload image (google only)`
-- Allowed operation: check INSERT
-- Target roles: `authenticated`
-- Policy definition: `bucket_id = 'images' AND auth.jwt() ->> 'is_anonymous' != 'true'`
+Run the `storage.objects` policies (read: public, upload: Google users, delete: uploader or admin, move: admin)
+in the SQL Editor; see [DATABASE.md](DATABASE.md#storage-정책-storageobjects).
 
 ### Database Setup
 

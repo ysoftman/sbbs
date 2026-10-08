@@ -1,6 +1,9 @@
 # Database 설정
 
-Supabase SQL Editor 에서 실행한다.
+Supabase SQL Editor 에서 아래 순서대로 실행한다. 뒤 테이블의 정책이 앞의 `admins` 테이블과 `set_author` 함수를 참조한다.
+
+쓰기 원칙: 카운터(`index`)와 좋아요(`image_likes`)는 `SECURITY DEFINER` RPC 로만 쓰고 클라이언트 쓰기 정책을 두지 않는다.
+작성자 필드(`user_id`, `user_name`)는 트리거가 JWT 에서 채우므로 클라이언트가 보낸 값은 무시된다.
 
 ## index 테이블
 
@@ -14,10 +17,7 @@ ALTER TABLE index ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow read" ON index FOR SELECT USING (true);
 
-CREATE POLICY "Allow write for authenticated" ON index
-  FOR ALL USING (auth.uid() IS NOT NULL);
-
--- 조회수 원자적 증가를 위한 RPC 함수
+-- 조회수 원자적 증가를 위한 RPC 함수 (쓰기 정책 없이 이 함수로만 증가)
 CREATE OR REPLACE FUNCTION increment_view_cnt(doc_name TEXT)
 RETURNS INTEGER AS $$
 DECLARE
@@ -29,7 +29,54 @@ BEGIN
   RETURNING view_cnt INTO new_cnt;
   RETURN new_cnt;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+```
+
+## admins 테이블
+
+```sql
+CREATE TABLE IF NOT EXISTS admins (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id),
+  email TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
+
+-- 자기 행만 보인다 (관리자 email 노출 방지). 다른 정책의 admin 확인도 자기 행만 보이면 충분하다.
+CREATE POLICY "Allow read own row" ON admins
+  FOR SELECT USING (user_id = auth.uid());
+
+-- admin 등록 (email 로 user_id 조회)
+-- INSERT INTO admins (user_id, email)
+-- SELECT id, email FROM auth.users WHERE email = 'ysoftman@gmail.com';
+```
+
+## set_author 함수 (작성자 필드 서버 기록)
+
+`image_info`, `image_messages` INSERT 시 `user_id`, `user_name` 을 JWT 로 덮어써 다른 사용자 행세를 막는다.
+RLS `WITH CHECK` 는 BEFORE 트리거 이후에 평가된다. `auth.uid()` 가 없는 SQL Editor / service role 작업은 그대로 둔다.
+
+```sql
+CREATE OR REPLACE FUNCTION set_author()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+  NEW.user_id := auth.uid();
+  NEW.user_name := CASE
+    WHEN (auth.jwt() ->> 'is_anonymous')::boolean THEN 'Anonymous'
+    ELSE coalesce(
+      nullif(auth.jwt() -> 'user_metadata' ->> 'full_name', ''),
+      nullif(split_part(auth.jwt() ->> 'email', '@', 1), ''),
+      'Unknown'
+    )
+  END;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SET search_path = public;
 ```
 
 ## image_info 테이블
@@ -66,6 +113,9 @@ CREATE POLICY "Allow delete" ON image_info
     auth.uid() = user_id
     OR EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid())
   );
+
+CREATE TRIGGER image_info_set_author BEFORE INSERT ON image_info
+  FOR EACH ROW EXECUTE FUNCTION set_author();
 ```
 
 ## image_messages 테이블
@@ -96,29 +146,14 @@ CREATE POLICY "Allow update for admin" ON image_messages
 
 CREATE POLICY "Allow delete own messages" ON image_messages
   FOR DELETE USING (auth.uid() = user_id);
-```
 
-## admins 테이블
-
-```sql
-CREATE TABLE IF NOT EXISTS admins (
-  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id),
-  email TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
-ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow read for authenticated" ON admins
-  FOR SELECT USING (auth.uid() IS NOT NULL);
-
--- admin 등록 (email 로 user_id 조회)
--- INSERT INTO admins (user_id, email)
--- SELECT id, email FROM auth.users WHERE email = 'ysoftman@gmail.com';
+CREATE TRIGGER image_messages_set_author BEFORE INSERT ON image_messages
+  FOR EACH ROW EXECUTE FUNCTION set_author();
 ```
 
 ## image_likes 테이블
+
+INSERT/DELETE 정책이 없으므로 직접 쓰기는 막히고 `toggle_like` RPC 로만 쓴다.
 
 ```sql
 CREATE TABLE IF NOT EXISTS image_likes (
@@ -133,40 +168,68 @@ ALTER TABLE image_likes ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow read" ON image_likes FOR SELECT USING (true);
 
-CREATE POLICY "Allow insert for authenticated" ON image_likes
-  FOR INSERT WITH CHECK (
-    auth.uid() IS NOT NULL
-    AND auth.jwt() ->> 'is_anonymous' != 'true'
-  );
-
-CREATE POLICY "Allow delete own likes" ON image_likes
-  FOR DELETE USING (auth.uid() = user_id);
-
 CREATE INDEX idx_image_likes_image_name ON image_likes(image_name);
 CREATE INDEX idx_image_likes_user_id ON image_likes(user_id);
 
--- 좋아요 토글 RPC (원자적 like/unlike + count 반환)
+-- 좋아요 토글 RPC (원자적 like/unlike + count 반환). RLS 를 우회하므로 구글 로그인 여부를 직접 확인한다.
 CREATE OR REPLACE FUNCTION toggle_like(p_image_name TEXT)
 RETURNS JSON AS $$
 DECLARE
   v_user_id UUID := auth.uid();
-  v_exists BOOLEAN;
+  v_liked BOOLEAN;
   v_count INTEGER;
 BEGIN
-  SELECT EXISTS(
-    SELECT 1 FROM image_likes WHERE image_name = p_image_name AND user_id = v_user_id
-  ) INTO v_exists;
+  IF v_user_id IS NULL OR coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) THEN
+    RAISE EXCEPTION 'Google login required' USING ERRCODE = '42501';
+  END IF;
 
-  IF v_exists THEN
-    DELETE FROM image_likes WHERE image_name = p_image_name AND user_id = v_user_id;
-  ELSE
+  DELETE FROM image_likes WHERE image_name = p_image_name AND user_id = v_user_id;
+  v_liked := NOT FOUND;
+  IF v_liked THEN
     INSERT INTO image_likes (image_name, user_id) VALUES (p_image_name, v_user_id);
   END IF;
 
   SELECT COUNT(*) INTO v_count FROM image_likes WHERE image_name = p_image_name;
-  RETURN json_build_object('liked', NOT v_exists, 'like_count', v_count);
+  RETURN json_build_object('liked', v_liked, 'like_count', v_count);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+```
+
+## Storage 정책 (storage.objects)
+
+`images` 버킷(public) 의 정책. Dashboard 로 만든 정책은 이름 뒤에 접미사가 붙으므로 먼저 현재 정책을 확인하고,
+아래와 다른 것만 교체한다. 작업별 필요 권한(Supabase JS reference 기준): upload = INSERT, remove = SELECT + DELETE,
+move = SELECT + UPDATE. 클라이언트의 삭제 권한 확인(`deleteFile`)은 우회 가능하므로 실제 차단은 이 정책이 맡는다.
+
+```sql
+-- 현재 정책 확인
+SELECT policyname, cmd, roles, qual, with_check
+FROM pg_policies
+WHERE schemaname = 'storage' AND tablename = 'objects';
+
+CREATE POLICY "images read" ON storage.objects
+  FOR SELECT USING (bucket_id = 'images');
+
+CREATE POLICY "images upload (google only)" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'images' AND auth.jwt() ->> 'is_anonymous' != 'true');
+
+CREATE POLICY "images delete (owner or admin)" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'images'
+    AND (
+      owner_id = (SELECT auth.jwt() ->> 'sub')
+      OR EXISTS (SELECT 1 FROM public.admins WHERE admins.user_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "images move (admin)" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (
+    bucket_id = 'images'
+    AND EXISTS (SELECT 1 FROM public.admins WHERE admins.user_id = auth.uid())
+  );
 ```
 
 ## category_bookmarks 테이블 (제거됨)
@@ -291,3 +354,36 @@ UPDATE image_info
 SET display_name = regexp_replace(file_path, '^.*/', '')
 WHERE display_name = '';
 ```
+
+### 보안 정책 강화 (작성자 서버 기록, RPC 전용 쓰기, admins 노출 차단)
+
+기존 프로젝트에 한 번 실행한다. 클라이언트 코드는 이 마이그레이션 전후 모두 동작한다.
+
+1. 위 [set_author 함수](#set_author-함수-작성자-필드-서버-기록) 의 `CREATE OR REPLACE FUNCTION` 을 실행한다.
+2. 위 [image_likes 테이블](#image_likes-테이블) 의 `toggle_like` `CREATE OR REPLACE FUNCTION` 을 다시 실행한다 (익명 차단 + `search_path` 고정).
+3. 아래를 실행한다.
+
+```sql
+-- 작성자 필드 서버 기록
+CREATE TRIGGER image_info_set_author BEFORE INSERT ON image_info
+  FOR EACH ROW EXECUTE FUNCTION set_author();
+CREATE TRIGGER image_messages_set_author BEFORE INSERT ON image_messages
+  FOR EACH ROW EXECUTE FUNCTION set_author();
+
+-- image_likes / index 는 RPC 로만 쓴다
+DROP POLICY IF EXISTS "Allow insert for authenticated" ON image_likes;
+DROP POLICY IF EXISTS "Allow delete own likes" ON image_likes;
+DROP POLICY IF EXISTS "Allow write for authenticated" ON index;
+
+ALTER FUNCTION increment_view_cnt(TEXT) SET search_path = public;
+
+-- admins 는 자기 행만
+DROP POLICY IF EXISTS "Allow read for authenticated" ON admins;
+CREATE POLICY "Allow read own row" ON admins
+  FOR SELECT USING (user_id = auth.uid());
+
+-- 확인
+SELECT tablename, policyname, cmd FROM pg_policies WHERE schemaname = 'public' ORDER BY 1, 2;
+```
+
+4. [Storage 정책](#storage-정책-storageobjects) 을 현재 정책과 비교해 삭제/이동 정책이 업로더·admin 으로 제한돼 있는지 확인한다.

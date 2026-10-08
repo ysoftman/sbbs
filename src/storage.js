@@ -49,37 +49,17 @@ export const getImageList = async (path, offset = 0, limit = 1000) => {
   return files;
 };
 
-// supabase database(index 테이블) 문서 생성
-export const setViewDoc = async (docName) => {
-  const { error } = await supabase.from("index").upsert({
-    name: docName,
-    view_cnt: 1,
-  });
-  if (error) {
-    console.warn("setViewDoc error:", error);
-  }
-};
-
 // supabase database 조회수 조회 및 증가
-// RPC(stored procedure) 를 사용해 원자적 증가 처리
+// 카운터는 increment_view_cnt RPC(원자적 증가)로만 쓴다. index 테이블엔 클라이언트 쓰기 권한이 없다.
 export const getViewCnt = async (docName, htmlId) => {
-  // rpc 함수 increment_view_cnt 호출 (supabase SQL editor 에서 생성 필요)
   const { data, error } = await supabase.rpc("increment_view_cnt", {
     doc_name: docName,
   });
   if (error) {
     console.warn("getViewCnt error:", error);
-    // rpc 실패시 직접 조회 시도
-    const { data: row } = await supabase.from("index").select("view_cnt").eq("name", docName).single();
-    if (row) {
-      document.getElementById(htmlId).innerHTML = formatCount(row.view_cnt);
-    } else {
-      await setViewDoc(docName);
-      document.getElementById(htmlId).innerHTML = "1";
-    }
     return;
   }
-  document.getElementById(htmlId).innerHTML = formatCount(data);
+  document.getElementById(htmlId).textContent = formatCount(data);
 };
 
 // 파일 이동 (storage move + DB 경로 업데이트, admin 전용)
