@@ -201,6 +201,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 아래와 다른 것만 교체한다. 작업별 필요 권한(Supabase JS reference 기준): upload = INSERT, remove = SELECT + DELETE,
 move = SELECT + UPDATE. 클라이언트의 삭제 권한 확인(`deleteFile`)은 우회 가능하므로 실제 차단은 이 정책이 맡는다.
 
+production 은 같은 조건의 정책이 다른 이름으로 있다: 읽기 `read image 1ffg0oo_0`, 업로드 `Allow upload for google`,
+이동 `Allow move for admin`, 삭제 `images delete (owner or admin)`. 추가로 중복 읽기 정책
+`Authenticated users can read`(authenticated, `bucket_id = 'images'`) 가 있지만 public 읽기와 같아 영향은 없다.
+
 ```sql
 -- 현재 정책 확인
 SELECT policyname, cmd, roles, qual, with_check
@@ -358,6 +362,7 @@ WHERE display_name = '';
 ### 보안 정책 강화 (작성자 서버 기록, RPC 전용 쓰기, admins 노출 차단)
 
 기존 프로젝트에 한 번 실행한다. 클라이언트 코드는 이 마이그레이션 전후 모두 동작한다.
+production 에는 2026-10-08 에 1~4 단계를 하나의 트랜잭션으로 적용했다.
 
 1. 위 [set_author 함수](#set_author-함수-작성자-필드-서버-기록) 의 `CREATE OR REPLACE FUNCTION` 을 실행한다.
 2. 위 [image_likes 테이블](#image_likes-테이블) 의 `toggle_like` `CREATE OR REPLACE FUNCTION` 을 다시 실행한다 (익명 차단 + `search_path` 고정).
@@ -386,4 +391,30 @@ CREATE POLICY "Allow read own row" ON admins
 SELECT tablename, policyname, cmd FROM pg_policies WHERE schemaname = 'public' ORDER BY 1, 2;
 ```
 
-4. [Storage 정책](#storage-정책-storageobjects) 을 현재 정책과 비교해 삭제/이동 정책이 업로더·admin 으로 제한돼 있는지 확인한다.
+4. 문서와 다르게 만들어져 있던 정책을 교체한다. 아래는 production 에서 조회된 정책 이름 기준이며,
+   다른 프로젝트는 [Storage 정책](#storage-정책-storageobjects) 의 확인 쿼리로 이름과 조건을 먼저 비교한다.
+
+```sql
+-- image_info 삭제: 본인만 → 본인 또는 admin (admin 이 남의 파일을 지울 때 image_info 가 남지 않도록)
+DROP POLICY "Allow delete own" ON image_info;
+CREATE POLICY "Allow delete" ON image_info
+  FOR DELETE USING (
+    auth.uid() = user_id
+    OR EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid())
+  );
+
+-- storage 삭제: 이름과 달리 조건이 bucket_id 뿐이라 익명 포함 누구나 모든 파일 삭제 가능 → 업로더 또는 admin
+DROP POLICY "Authenticated users can delete own files" ON storage.objects;
+CREATE POLICY "images delete (owner or admin)" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'images'
+    AND (
+      owner_id = (SELECT auth.jwt() ->> 'sub')
+      OR EXISTS (SELECT 1 FROM public.admins WHERE admins.user_id = auth.uid())
+    )
+  );
+
+-- storage 업로드: 조건이 bucket_id 뿐이라 익명도 업로드 가능 → 제거 ("Allow upload for google" 만 남긴다)
+DROP POLICY "Authenticated users can upload" ON storage.objects;
+```
