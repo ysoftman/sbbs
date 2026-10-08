@@ -1,4 +1,4 @@
-import { getCurrentUser, supabase } from "./common.js";
+import { getCurrentUser, getUserName, supabase } from "./common.js";
 import { formatCount, formatFileSize, showAlert } from "./utils.js";
 
 export const STORAGE_BUCKET = "images";
@@ -6,13 +6,6 @@ export const STORAGE_BUCKET = "images";
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_VIDEO_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/svg+xml", "video/mp4"];
-
-export const getMeta = (url, cb) => {
-  const img = new Image();
-  img.onload = () => cb(null, img);
-  img.onerror = (err) => cb(err);
-  img.src = url;
-};
 
 // supabase storage 카테고리 목록 조회
 export const getImageDirs = async (path) => {
@@ -175,13 +168,10 @@ export const uploadFile = async (file) => {
     await showAlert(`Upload error: ${error.message}`);
     return false;
   }
-  const userName = user.is_anonymous
-    ? "Anonymous"
-    : user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown";
   const { error: metaError } = await supabase.from("image_info").upsert(
     {
       file_path: filePath,
-      user_name: userName,
+      user_name: getUserName(user),
       user_id: user.id,
       display_name: file.name,
     },

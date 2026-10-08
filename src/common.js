@@ -16,6 +16,10 @@ const currentUserPromise = supabase.auth.getUser().then(({ data }) => {
 });
 export const getCurrentUser = () => (currentUserReady ? Promise.resolve(currentUser) : currentUserPromise);
 
+// 화면/DB 에 남길 사용자 이름 (로그인 버튼, 댓글, 업로드 공통)
+export const getUserName = (user) =>
+  user.is_anonymous ? "Anonymous" : user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown";
+
 const loginBoxID = "login_google";
 const loginAnonymousBoxID = "login_anonymous";
 
@@ -39,8 +43,7 @@ supabase.auth.onAuthStateChange((_event, session) => {
       document.getElementById(loginAnonymousBoxID).innerHTML = makeLogoutBoxHTML("", user.id);
       return;
     }
-    const userName = user.user_metadata?.full_name || user.email?.split("@")[0] || "Unknown";
-    document.getElementById(loginBoxID).innerHTML = makeLogoutBoxHTML(userName, user.id);
+    document.getElementById(loginBoxID).innerHTML = makeLogoutBoxHTML(getUserName(user), user.id);
     document.getElementById(loginAnonymousBoxID).innerHTML = "login Anonymous";
   } else {
     // User is signed out.

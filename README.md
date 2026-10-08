@@ -17,16 +17,10 @@ Image/video gallery web app using Supabase Storage, Auth, and Database.
 # Create a new project at https://supabase.com/dashboard
 # Check Settings > General > Project ID and compose the Project URL (note: .co, not .com)
 # Check Settings > API Keys > Publishable and secret API keys tab
-# Create src/supabase_config.js (added to .gitignore)
-cat << zzz >! src/supabase_config.js
-export const supabaseUrl = () => {
-  return "https://<project-id>.supabase.co";
-};
-
-export const supabasePublishableKey = () => {
-  return "sb_publishable_...";
-};
-zzz
+# Create .env (gitignored) from .env.example; src/supabase_config.js reads these Vite env vars
+cp .env.example .env
+# VITE_SUPABASE_URL=https://<project-id>.supabase.co
+# VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
 ## Supabase Dashboard Configuration
@@ -48,8 +42,8 @@ zzz
   4. Callback URL (for OAuth): `https://<project-id>.supabase.co/auth/v1/callback` (auto-generated)
 - Authentication > Sign In / Providers > Supabase Auth tab > Enable "Allow anonymous sign-ins"
 - Authentication > URL Configuration:
-  - **Site URL**: `https://ysoftman.github.io/supabase` (final redirect target after sign-in)
-  - **Redirect URLs**: add `https://ysoftman.github.io/supabase`
+  - **Site URL**: `https://ysoftman.github.io/sbbs/` (final redirect target after sign-in)
+  - **Redirect URLs**: add `https://ysoftman.github.io/sbbs/`
   - For local testing, also add `http://localhost:5173/sbbs/` to Redirect URLs
 - Google Cloud Console > OAuth client > Add `http://localhost:5173` to **Authorized JavaScript origins**
 
@@ -112,17 +106,18 @@ bun install
 bun dev
 
 # Local preview
-# http://localhost:5173/
+# http://localhost:5173/sbbs/
 ```
 
 ## GitHub Pages Deployment
 
 ### Automatic Deployment via GitHub Actions
 
-When files under `supabase/` are changed and pushed to `main`, GitHub Actions automatically builds and deploys.
+Every push to `main` triggers GitHub Actions to build and deploy.
 
-- Workflow file: `.github/workflows/deploy-supabase.yml`
-- Deployment URL: `https://ysoftman.github.io/supabase/`
+- Workflow file: `.github/workflows/deploy-sbbs.yml`
+- Deployment URL: `https://ysoftman.github.io/sbbs/`
+- The `og-preview` Edge Function is not deployed by this workflow (see [OG.md](OG.md))
 
 ### GitHub Repo Settings (One-Time Setup)
 
@@ -130,8 +125,7 @@ When files under `supabase/` are changed and pushed to `main`, GitHub Actions au
 
 ### GitHub Secrets Setup (One-Time Setup)
 
-`src/supabase_config.js` is included in `.gitignore`, so it does not exist during GitHub Actions builds.
-It must be injected via GitHub Secrets.
+`.env` is gitignored, so the workflow writes it from GitHub Secrets before building.
 
 1. GitHub repo > Settings > Secrets and variables > Actions
 2. Add the following to **Repository secrets**:

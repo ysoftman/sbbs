@@ -466,10 +466,12 @@ img.thumbnail:hover {
   opacity: 0.88;
 }
 
+/* 행 높이는 미디어가 정한다. 메시지 영역은 contain: size 로 자기 내용 높이를 행에 보태지 않고
+   그 높이에 맞춰 늘어나며(min-height 하한), 넘치는 메시지는 msg-list 안에서 스크롤된다. */
 .img-content-row {
   display: flex;
   gap: 20px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .img-media {
@@ -493,6 +495,8 @@ img.thumbnail:hover {
 .img-side-msg {
   flex: 1 1 320px;
   min-width: 0;
+  min-height: 200px;
+  contain: size;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -610,6 +614,10 @@ img.thumbnail:hover {
   font-size: 12px;
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
+}
+
+.like-count:empty {
+  display: none;
 }
 
 /* 비어 있는 이유와 다음 행동을 같이 보여준다 */
@@ -830,9 +838,7 @@ img.thumbnail:hover {
    overlay / dialog
    ========================================================================== */
 
-.img-overlay,
-.dialog-overlay,
-.upload-dir-picker {
+.img-overlay {
   position: fixed;
   inset: 0;
   background: var(--overlay);
@@ -845,14 +851,29 @@ img.thumbnail:hover {
   animation: fadeIn 0.2s var(--ease);
 }
 
-.dialog-overlay:focus-within,
-.upload-dir-picker:focus-within,
 .img-overlay:focus-within {
   outline: none;
 }
 
-.dialog-inner,
-.upload-dir-picker-inner {
+/* 네이티브 <dialog>: 배경은 ::backdrop, 보이는 패널은 .dialog-inner */
+.dialog {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+  animation: fadeIn 0.2s var(--ease);
+}
+
+.dialog::backdrop {
+  background: var(--overlay);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.dialog-inner {
   cursor: default;
   text-align: center;
   width: min(520px, 92vw);
@@ -874,7 +895,7 @@ img.thumbnail:hover {
   gap: 8px;
 }
 
-.upload-dir-picker-inner .btn {
+.move-dir-list .btn {
   margin: 3px;
 }
 
@@ -1095,6 +1116,7 @@ img.thumbnail:hover {
 @media screen and (max-width: 768px) {
   .img-content-row {
     flex-direction: column;
+    align-items: flex-start;
   }
 
   .img-media {
@@ -1109,6 +1131,8 @@ img.thumbnail:hover {
 
   .img-side-msg {
     height: auto;
+    min-height: auto;
+    contain: none;
   }
 
   .msg-list {
@@ -1196,8 +1220,7 @@ img.thumbnail:hover {
     flex-direction: column;
   }
 
-  .dialog-inner,
-  .upload-dir-picker-inner {
+  .dialog-inner {
     width: min(420px, 94vw);
   }
 

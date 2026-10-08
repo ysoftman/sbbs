@@ -1,5 +1,5 @@
 import { supabase } from "./common.js";
-import { escapeHtml, makeDicebear, maxHeightUpdaters, showAlert, showConfirm } from "./utils.js";
+import { escapeHtml, formatDate, makeDicebear, showAlert, showConfirm } from "./utils.js";
 
 export const INITIAL_LIMIT = 10;
 const MORE_LIMIT = 5;
@@ -36,8 +36,7 @@ const deleteMessage = async (id) => {
 };
 
 const renderMessageRow = (row, currentUserId, imageName, listId) => {
-  const d = new Date(row.created_at);
-  const date = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+  const date = formatDate(row.created_at);
   const user = escapeHtml(row.user_name || "Unknown");
   const msg = escapeHtml(row.message).replace(
     /(https?:\/\/[^\s<]+)/g,
@@ -95,9 +94,6 @@ export const renderMessages = (imageName, listId, currentUserId, data, offset = 
       loadMessages(imageName, listId, currentUserId, newOffset);
     });
   }
-  // 메시지 로드 후 textarea max-height 재계산
-  const msgIdKey = listId.replace("msg_list_", "");
-  if (maxHeightUpdaters[msgIdKey]) maxHeightUpdaters[msgIdKey]();
 };
 
 // 이미지 메시지 조회 (초기 10개, 이후 5개씩 추가 로드). more 버튼과 저장/삭제 후 갱신에 사용

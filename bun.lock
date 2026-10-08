@@ -9,7 +9,6 @@
         "@dicebear/styles": "^10.6.0",
         "@phosphor-icons/web": "^2.1.2",
         "@supabase/supabase-js": "^2.112.4",
-        "sass": "^1.103.1",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.5.10",

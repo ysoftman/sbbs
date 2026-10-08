@@ -1,6 +1,6 @@
-import { getCurrentUser, supabase } from "./common.js";
+import { getCurrentUser, getUserName, supabase } from "./common.js";
 import { INITIAL_LIMIT, loadMessages, renderMessages, saveMessage } from "./message.js";
-import { deleteFile, getImageDirs, getMeta, moveFile, STORAGE_BUCKET } from "./storage.js";
+import { deleteFile, getImageDirs, moveFile, STORAGE_BUCKET } from "./storage.js";
 import { supabaseUrl } from "./supabase_config.js";
 import {
   escapeHtml,
@@ -11,15 +11,11 @@ import {
   isVideoName,
   MAX_MSG_BYTES,
   makeDicebear,
-  maxHeightUpdaters,
   showAlert,
   showConfirm,
+  showDirPicker,
   toSafeId,
 } from "./utils.js";
-
-// 이미지 높이에 맞춰 메시지 영역을 접을 때 지켜야 할 하한.
-// 입력 폼(약 90px)과 목록(min-height 60px)이 잘리지 않을 만큼.
-const MIN_SIDE_HEIGHT = 200;
 
 // admin 상태 캐싱 (세션 내 변경 없음)
 let cachedAdminStatus = null;
@@ -90,7 +86,7 @@ const showImageOverlay = (url, name, displayName) => {
     `<div class="img-overlay-wrap">` +
     `<div class="img-overlay-info">` +
     `<span class="img-overlay-path">${escapeHtml(displayName)}</span>` +
-    `<span class="img-overlay-size" id="overlay_size_${toSafeId(name)}"></span>` +
+    `<span class="img-overlay-size"></span>` +
     `<button class="btn btn-primary img-overlay-copy" title="copy link" aria-label="copy link">` +
     `<i class="ph-fill ph-link"></i> copy link</button>` +
     `</div>` +
@@ -108,10 +104,9 @@ const showImageOverlay = (url, name, displayName) => {
     copyDeepLink(name, copyBtn);
   });
   if (isVideo) return;
-  getMeta(url, (err, img) => {
-    if (err || !img) return;
-    const sizeEl = overlay.querySelector(`#overlay_size_${toSafeId(name)}`);
-    if (sizeEl) sizeEl.textContent = `${img.naturalWidth} x ${img.naturalHeight}`;
+  const img = overlay.querySelector("img");
+  img.addEventListener("load", () => {
+    overlay.querySelector(".img-overlay-size").textContent = `${img.naturalWidth} x ${img.naturalHeight}`;
   });
 };
 
@@ -126,50 +121,42 @@ export const showOverlayByName = async (name) => {
   showImageOverlay(publicUrl, name, displayName);
 };
 
-// 파일 이동 카테고리 선택 피커 (admin 전용)
-const showMovePicker = (currentDir, onSelect) => {
-  const existing = document.getElementById("move-dir-picker");
-  if (existing) existing.remove();
+// 좋아요 표시 (리스트·그리드 공통). like-count 가 비면 CSS 로 숨긴다.
+const buildLikeHtml = (cls, name, likeCount, isLiked) =>
+  `<span class="${cls}" id="like_${toSafeId(name)}">` +
+  `<i class="ph-fill ph-thumbs-up ${isLiked ? "like-active" : "like-inactive"} like-heart" ` +
+  `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
+  `<span class="like-count">${likeCount ? formatCount(likeCount) : ""}</span></span>`;
 
-  getImageDirs("").then((dirs) => {
-    const others = dirs.filter((d) => d !== currentDir);
-    const picker = document.createElement("div");
-    picker.id = "move-dir-picker";
-    picker.className = "upload-dir-picker";
-
-    const dirsHtml =
-      others.length > 0
-        ? others
-            .map(
-              (dir) =>
-                `<button class="btn btn-primary move-dir-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
-            )
-            .join(" ")
-        : '<span class="t-muted">no categories</span>';
-
-    picker.innerHTML =
-      '<div class="upload-dir-picker-inner panel">' +
-      "<p>move to</p>" +
-      `<div class="move-dir-list">${dirsHtml}</div>` +
-      '<br><button class="btn move-dir-cancel">cancel</button>' +
-      "</div>";
-    document.body.appendChild(picker);
-    picker.tabIndex = -1;
-    picker.focus();
-
-    picker.querySelector(".move-dir-cancel").addEventListener("click", () => picker.remove());
-    picker.addEventListener("click", (e) => {
-      if (e.target === picker) picker.remove();
-    });
-    picker.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") picker.remove();
-    });
-
-    for (const btn of picker.querySelectorAll(".move-dir-btn")) {
-      btn.addEventListener("click", () => {
-        picker.remove();
-        onSelect(btn.dataset.dir);
-      });
+// 좋아요 핸들러 (리스트·그리드 공통). 구글 로그인 사용자만 토글, 그 외는 로그인 안내
+const setupLikeHandler = (name, currentUser) => {
+  const likeEl = document.getElementById(`like_${toSafeId(name)}`);
+  const heartEl = likeEl?.querySelector(".like-heart");
+  if (!heartEl) return;
+  if (!currentUser || currentUser.is_anonymous) {
+    heartEl.style.cursor = "pointer";
+    heartEl.addEventListener("click", () => showAlert("Google login required"));
+    return;
+  }
+  heartEl.classList.add("clickable");
+  heartEl.removeAttribute("title");
+  heartEl.addEventListener("click", async () => {
+    if (heartEl.dataset.pending === "true") return;
+    heartEl.dataset.pending = "true";
+    try {
+      const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
+      if (error || !data) {
+        console.warn("toggle_like error:", error ?? "no data returned");
+        return;
+      }
+      heartEl.dataset.liked = data.liked;
+      heartEl.classList.toggle("like-active", data.liked);
+      heartEl.classList.toggle("like-inactive", !data.liked);
+      likeEl.querySelector(".like-count").textContent = data.like_count ? formatCount(data.like_count) : "";
+    } catch (err) {
+      console.warn("toggle_like error:", err);
+    } finally {
+      heartEl.dataset.pending = "false";
     }
   });
 };
@@ -178,8 +165,6 @@ const showMovePicker = (currentDir, onSelect) => {
 const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet, displayName) => {
   const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
-  const likeCount = likeCountMap[name] || 0;
-  const isLiked = userLikeSet.has(name);
 
   const mediaHtml = isImage
     ? `<img class="grid-thumb" loading="lazy" src="${publicUrl}" alt="${escapeHtml(name)}" data-name="${escapeHtml(name)}" data-url="${publicUrl}">`
@@ -190,11 +175,7 @@ const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet, displayNa
     `<div class="grid-card-media">${mediaHtml}</div>` +
     `<div class="grid-card-info">` +
     `<a class="grid-card-name" href="#${encodeURIComponent(name)}" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</a>` +
-    `<span class="grid-card-like" id="like_${msgId}">` +
-    `<i class="ph-fill ${isLiked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart" ` +
-    `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
-    `${likeCount ? `<span class="like-count">${formatCount(likeCount)}</span>` : ""}` +
-    `</span>` +
+    buildLikeHtml("grid-card-like", name, likeCountMap[name] || 0, userLikeSet.has(name)) +
     `</div></div>`
   );
 };
@@ -213,40 +194,7 @@ const setupGridHandlers = (name, currentUser, displayName) => {
       });
     }
   }
-  // 좋아요 핸들러
-  const likeEl = document.getElementById(`like_${msgId}`);
-  const heartEl = likeEl?.querySelector(".like-heart");
-  if (!heartEl) return;
-  if (!currentUser || currentUser.is_anonymous) {
-    heartEl.style.cursor = "pointer";
-    heartEl.addEventListener("click", () => showAlert("Google login required"));
-  } else {
-    heartEl.classList.add("clickable");
-    heartEl.removeAttribute("title");
-    heartEl.addEventListener("click", async () => {
-      if (heartEl.dataset.pending === "true") return;
-      heartEl.dataset.pending = "true";
-      try {
-        const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
-        if (error || !data) {
-          console.warn("toggle_like error:", error ?? "no data returned");
-          return;
-        }
-        heartEl.dataset.liked = data.liked;
-        heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
-        const countEl = likeEl.querySelector(".like-count");
-        if (countEl) {
-          countEl.textContent = data.like_count ? formatCount(data.like_count) : "";
-        } else if (data.like_count) {
-          likeEl.insertAdjacentHTML("beforeend", `<span class="like-count">${formatCount(data.like_count)}</span>`);
-        }
-      } catch (err) {
-        console.warn("toggle_like error:", err);
-      } finally {
-        heartEl.dataset.pending = "false";
-      }
-    });
-  }
+  setupLikeHandler(name, currentUser);
 };
 
 // 이미지/비디오 HTML 생성
@@ -276,13 +224,7 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
       ? `${uploaderAvatar}<span class="img-uploader">${escapeHtml(uploadInfo.user_name)}</span> `
       : "") +
     `</span>`;
-  const likeCount = likeCountMap[name] || 0;
-  const isLiked = userLikeSet.has(name);
-  const likeHtml =
-    `<span class="img-like" id="like_${msgId}">` +
-    `<i class="ph-fill ${isLiked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart" ` +
-    `data-name="${escapeHtml(name)}" data-liked="${isLiked}" title="Google login required"></i>` +
-    `<span class="like-count">${likeCount ? formatCount(likeCount) : ""}</span></span>`;
+  const likeHtml = buildLikeHtml("img-like", name, likeCountMap[name] || 0, userLikeSet.has(name));
   const moveHtml = `<span class="img-file-move" id="file_move_${msgId}" style="display:none"></span>`;
   const deleteHtml = `<span class="img-file-delete" id="file_del_${msgId}" style="display:none"></span>`;
   if (isImage) {
@@ -315,23 +257,8 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
       thumbEl.addEventListener("click", () => {
         showImageOverlay(thumbEl.dataset.url, thumbEl.dataset.name, displayName);
       });
-      const sid = toSafeId(name);
-      // 메시지 영역(.img-side-msg) 높이를 이미지 높이에 맞추되 MIN_SIDE_HEIGHT 아래로는 내리지 않는다.
-      // .img-side-msg 는 overflow:hidden 이라 이 값이 그대로 잘리는 높이가 된다.
-      // flex column 레이아웃이라 입력 폼이 보이면 그 높이만큼 msg-list 가 자동으로 줄어든다.
-      const applyMsgListHeight = () => {
-        const sideEl = thumbEl.closest(".img-content-row")?.querySelector(".img-side-msg");
-        if (!sideEl || !thumbEl.clientHeight) return;
-        if (window.matchMedia("(max-width: 768px)").matches) {
-          sideEl.style.height = "";
-          return;
-        }
-        sideEl.style.height = `${Math.max(thumbEl.clientHeight, MIN_SIDE_HEIGHT)}px`;
-      };
-      maxHeightUpdaters[sid] = applyMsgListHeight;
       // 이미지 크기 표시는 별도 Image 객체로 다시 받지 않고 lazy 로딩되는 썸네일 자체의 load 를 사용한다
       const onThumbLoad = () => {
-        applyMsgListHeight();
         const sizeEl = document.getElementById(`${msgId}_img_size`);
         if (sizeEl && thumbEl.naturalWidth) sizeEl.innerHTML = `(${thumbEl.naturalWidth}x${thumbEl.naturalHeight})`;
       };
@@ -347,12 +274,14 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
       moveEl.innerHTML = `<button class="btn img-file-move-btn">move</button>`;
       moveEl.querySelector(".img-file-move-btn").addEventListener("click", () => {
         const currentDir = name.includes("/") ? name.substring(0, name.indexOf("/")) : "";
-        showMovePicker(currentDir, async (targetDir) => {
-          const newPath = await moveFile(name, targetDir);
-          if (newPath) {
-            const container = moveEl.closest(".card");
-            if (container) container.remove();
-          }
+        getImageDirs("").then((dirs) => {
+          showDirPicker(
+            "move to",
+            dirs.filter((d) => d !== currentDir),
+            async (targetDir) => {
+              if (await moveFile(name, targetDir)) moveEl.closest(".card")?.remove();
+            },
+          );
         });
       });
     }
@@ -374,46 +303,7 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
       });
     }
   }
-  // 비로그인/anonymous 사용자: 하트 클릭 시 로그인 안내
-  if (!currentUser || currentUser.is_anonymous) {
-    const heartEl = document.getElementById(`like_${msgId}`)?.querySelector(".like-heart");
-    if (heartEl) {
-      heartEl.style.cursor = "pointer";
-      heartEl.addEventListener("click", () => showAlert("Google login required"));
-    }
-  }
-  // 구글 로그인 사용자만 좋아요 클릭 가능 (anonymous 제외)
-  if (currentUser && !currentUser.is_anonymous) {
-    const likeEl = document.getElementById(`like_${msgId}`);
-    const heartEl = likeEl?.querySelector(".like-heart");
-    if (heartEl) {
-      heartEl.classList.add("clickable");
-      heartEl.removeAttribute("title");
-      heartEl.addEventListener("click", async () => {
-        if (heartEl.dataset.pending === "true") return;
-        heartEl.dataset.pending = "true";
-        try {
-          const { data, error } = await supabase.rpc("toggle_like", { p_image_name: name });
-          if (error || !data) {
-            console.warn("toggle_like error:", error ?? "no data returned");
-            return;
-          }
-          heartEl.dataset.liked = data.liked;
-          heartEl.className = `ph-fill ${data.liked ? "ph-thumbs-up like-active" : "ph-thumbs-up like-inactive"} like-heart clickable`;
-          const countEl = likeEl.querySelector(".like-count");
-          if (countEl) {
-            countEl.textContent = data.like_count ? formatCount(data.like_count) : "";
-          } else if (data.like_count) {
-            likeEl.insertAdjacentHTML("beforeend", `<span class="like-count">${formatCount(data.like_count)}</span>`);
-          }
-        } catch (err) {
-          console.warn("toggle_like error:", err);
-        } finally {
-          heartEl.dataset.pending = "false";
-        }
-      });
-    }
-  }
+  setupLikeHandler(name, currentUser);
   // 메시지 렌더 (loadImages 가 image_info 임베드로 미리 받아온 rows)
   renderMessages(name, `msg_list_${msgId}`, currentUser?.id, messageMap[name] || []);
   // 로그인한 사용자만 메시지 입력 가능
@@ -442,10 +332,7 @@ const setupImageHandlers = (name, currentUser, isAdmin, uploaderMap, messageMap,
         saveBtn.dataset.pending = "true";
         saveBtn.disabled = true;
         try {
-          const userName = currentUser.is_anonymous
-            ? "Anonymous"
-            : currentUser.user_metadata?.full_name || currentUser.email?.split("@")[0] || "Unknown";
-          const saved = await saveMessage(name, textarea.value, userName, currentUser.id);
+          const saved = await saveMessage(name, textarea.value, getUserName(currentUser), currentUser.id);
           if (!saved) return;
           textarea.value = "";
           charcountEl.textContent = `0/${MAX_MSG_BYTES.toLocaleString()} bytes`;

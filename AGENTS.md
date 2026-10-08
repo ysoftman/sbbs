@@ -20,7 +20,7 @@ Guidance for AI agents working in this repository.
 The app reads Supabase credentials from Vite env vars, not from a hardcoded config:
 
 - Local dev: create `.env` from `.env.example` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `src/supabase_config.js` just re-exports `import.meta.env.VITE_*` (it is committed; the README's claim that it is gitignored is stale)
+- `src/supabase_config.js` just re-exports `import.meta.env.VITE_*` (committed; only `.env` is gitignored)
 - CI injects `.env` from GitHub Secrets (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`)
 - Dev server runs at `http://localhost:5173/sbbs/` (vite `base: "/sbbs/"`)
 
@@ -35,7 +35,7 @@ Single entry point: `index.html` → `src/index.js`. All DOM manipulation is han
 | `src/image.js` | Image overlay (comments, likes, share link, admin move), deep-link handling |
 | `src/message.js` | Per-image comments (`image_messages` table), paged 10 initially then 5 |
 | `src/index.js` | Gallery list/grid, infinite scroll, hash routing, search, keyboard shortcuts, theme |
-| `src/utils.js` | `escapeHtml`, formatters, `toSafeId`, dicebear avatars, `showAlert`/`showConfirm` modals |
+| `src/utils.js` | `escapeHtml`, formatters, `toSafeId`, dicebear avatars, native `<dialog>` helpers (`openDialog`, `showAlert`/`showConfirm`, `showDirPicker`) |
 | `supabase/functions/og-preview/index.ts` | Deno Edge Function: serves OG meta tags to crawlers, JS-redirects humans to the SPA |
 
 ## Data Architecture
@@ -53,13 +53,12 @@ Single entry point: `index.html` → `src/index.js`. All DOM manipulation is han
 2. **Web Locks contention**: concurrent `supabase.auth.getUser()` calls race. Use the cached `getCurrentUser()` from `src/common.js` instead.
 3. **Anonymous → Google login**: must `signOut()` the anonymous session before `signInWithOAuth`, otherwise the anonymous session survives the OAuth redirect.
 4. **No migration tooling**: schema changes are SQL run manually in the Supabase SQL Editor. `DATABASE.md` is the source of truth for tables, RLS policies, RPCs, and ad-hoc migrations. Update it when changing schema.
-5. **Stale async guard**: `src/index.js` uses a `loadGeneration` counter — after every `await` in a load path, check `gen !== loadGeneration` and bail out, or you will append stale results to a screen the user already navigated away from. Follow this pattern for new async list loads.
+5. **Stale async guard**: `src/index.js` uses a `loadGeneration` counter — after every `await` in a load path, check `gen !== loadGeneration` and bail out, or you will append stale results to a screen the user already navigated away from. Pass `staleChecker(gen)` to `loadImages` so it bails out after its own awaits too. Follow this pattern for new async list loads.
 6. **Pagination**: fetch `pageSize + 1` rows to detect `hasMore`, then slice.
 7. **XSS**: user content is interpolated into `innerHTML` everywhere — always pass it through `escapeHtml()` (`src/utils.js`).
 8. **Share links**: production copies the `og-preview` Edge Function URL (crawler-friendly); localhost copies the SPA `#hash` link, because the Edge Function's `SITE_URL` points at production. Hash routing format: `#category` / `#category/filename` (decoded with `decodeURIComponent`).
 9. **`vite.config.js` injects build-time globals** (`__LAST_VERSION_TAG__`, `__LAST_COMMIT_HASH__`, etc.) read from the local `main` branch via `execSync` — builds outside a git checkout fall back to `"unknown"`.
 10. **Supabase free-tier dormancy**: `keep_alive.sh` is a cron script that keeps the project awake; it must hit a real table (`/rest/v1/image_info`), not the REST root (401 with publishable key).
-11. **README discrepancies**: the README references `.github/workflows/deploy-supabase.yml` (actual: `deploy-sbbs.yml`) and claims deploys trigger on `supabase/` changes (actual: any push to `main`). Trust the workflow file.
 
 ## Style Conventions
 

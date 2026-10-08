@@ -9,12 +9,8 @@ export const toSafeId = (name) =>
 
 export const isVideoName = (name) => name.toLowerCase().endsWith(".mp4");
 
-export const formatCount = (n) => {
-  if (n == null) return "0";
-  if (n < 1000) return `${n}`;
-  if (n < 1000000) return `${(n / 1000).toFixed(n < 10000 ? 1 : 0)}K`;
-  return `${(n / 1000000).toFixed(1)}M`;
-};
+const compactNumber = new Intl.NumberFormat("en", { notation: "compact" });
+export const formatCount = (n) => compactNumber.format(n ?? 0);
 
 export const formatFileSize = (bytes) => {
   if (!bytes) return "";
@@ -40,14 +36,6 @@ export const makeDicebear = (seed) => new Avatar(pixelArtStyle, { seed }).toData
 export const escapeHtml = (str) =>
   str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
-// 이미지별 메시지 영역 높이 재계산 함수 저장 (image.js, message.js 에서 공유)
-export const maxHeightUpdaters = {};
-
-// 화면 크기 변경 시 모든 메시지 영역 높이 재계산
-window.addEventListener("resize", () => {
-  for (const fn of Object.values(maxHeightUpdaters)) fn();
-});
-
 export const loadingIndicatorHtml = (label = "loading") =>
   `<div class="loading-indicator">${label}<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
 
@@ -64,102 +52,63 @@ export const emptyStateHtml = (icon, title, hint) =>
   (hint ? `<p class="empty-hint">${hint}</p>` : "") +
   "</div>";
 
-// 테마 커스텀 alert
-export const showAlert = (message) => {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "dialog-overlay";
-    overlay.innerHTML =
-      '<div class="dialog-inner panel" role="alertdialog" aria-modal="true">' +
-      '<p class="dialog-message"></p>' +
-      '<div class="dialog-buttons">' +
-      '<button class="btn btn-primary dialog-ok">OK</button>' +
-      "</div></div>";
-    overlay.querySelector(".dialog-message").textContent = message;
-    document.body.appendChild(overlay);
-    const ok = overlay.querySelector(".dialog-ok");
-    ok.focus();
-    const close = () => {
-      overlay.remove();
-      resolve();
-    };
-    ok.addEventListener("click", close);
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) close();
-    });
-    overlay.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") close();
-      if (e.key === "Tab") {
-        const focusable = overlay.querySelectorAll(
-          "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
+// 네이티브 모달 <dialog>. 포커스 가두기·Esc·top layer 는 브라우저가 처리한다.
+// form[method=dialog] 버튼의 value 가 closed 의 결과가 되고, Esc·배경 클릭은 "" 로 닫힌다.
+export const openDialog = (html) => {
+  const dialog = document.createElement("dialog");
+  dialog.className = "dialog";
+  dialog.innerHTML = `<div class="dialog-inner panel">${html}</div>`;
+  // 배경(::backdrop) 클릭은 dialog 자신이 target 이 된다
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close("");
+  });
+  const closed = new Promise((resolve) => {
+    dialog.addEventListener("close", () => {
+      dialog.remove();
+      resolve(dialog.returnValue);
     });
   });
+  document.body.appendChild(dialog);
+  dialog.showModal();
+  return { dialog, closed };
 };
 
-// 테마 커스텀 confirm
-export const showConfirm = (message) => {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "dialog-overlay";
-    overlay.innerHTML =
-      '<div class="dialog-inner panel" role="dialog" aria-modal="true">' +
-      '<p class="dialog-message"></p>' +
-      '<div class="dialog-buttons">' +
-      '<button class="btn btn-primary dialog-yes">OK</button> ' +
-      '<button class="btn dialog-no">Cancel</button>' +
-      "</div></div>";
-    overlay.querySelector(".dialog-message").textContent = message;
-    document.body.appendChild(overlay);
-    const yes = overlay.querySelector(".dialog-yes");
-    yes.focus();
-    const accept = () => {
-      overlay.remove();
-      resolve(true);
-    };
-    const cancel = () => {
-      overlay.remove();
-      resolve(false);
-    };
-    yes.addEventListener("click", accept);
-    overlay.querySelector(".dialog-no").addEventListener("click", cancel);
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) cancel();
-    });
-    overlay.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") cancel();
-      if (e.key === "Tab") {
-        const focusable = overlay.querySelectorAll(
-          "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])",
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    });
+const dialogMessageHtml = (message, buttons) =>
+  `<p class="dialog-message">${escapeHtml(message)}</p><form method="dialog" class="dialog-buttons">${buttons}</form>`;
+
+export const showAlert = async (message) => {
+  await openDialog(dialogMessageHtml(message, '<button class="btn btn-primary" value="ok" autofocus>OK</button>'))
+    .closed;
+};
+
+export const showConfirm = async (message) =>
+  (await openDialog(
+    dialogMessageHtml(
+      message,
+      '<button class="btn btn-primary" value="ok" autofocus>OK</button><button class="btn" value="cancel">Cancel</button>',
+    ),
+  ).closed) === "ok";
+
+// 카테고리 선택 다이얼로그 (업로드 대상 / 파일 이동).
+// 업로드는 file input 을 열어야 하므로 close 이벤트를 기다리지 않고 클릭 안에서 바로 onSelect 를 부른다.
+export const showDirPicker = (title, dirs, onSelect) => {
+  const dirsHtml =
+    dirs.length > 0
+      ? dirs
+          .map(
+            (dir) =>
+              `<button type="button" class="btn btn-primary" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
+          )
+          .join("")
+      : '<span class="t-muted">no categories</span>';
+  const { dialog } = openDialog(
+    `<p>${title}</p><div class="move-dir-list">${dirsHtml}</div>` +
+      '<form method="dialog"><button class="btn">cancel</button></form>',
+  );
+  dialog.addEventListener("click", (e) => {
+    const dir = e.target.closest("[data-dir]")?.dataset.dir;
+    if (dir === undefined) return;
+    dialog.close(dir);
+    onSelect(dir);
   });
 };

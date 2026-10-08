@@ -10,7 +10,9 @@ import {
   escapeHtml,
   formatCount,
   loadingIndicatorHtml,
+  openDialog,
   showAlert,
+  showDirPicker,
   skeletonHtml,
   toSafeId,
 } from "./utils.js";
@@ -487,54 +489,13 @@ document.getElementById("search_input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") doSearch();
 });
 
-// 업로드 카테고리 선택 팝업
-const showUploadDirPicker = () => {
-  const existing = document.getElementById("upload-dir-picker");
-  if (existing) existing.remove();
-
-  const picker = document.createElement("div");
-  picker.id = "upload-dir-picker";
-  picker.className = "upload-dir-picker";
-  const dirsHtml =
-    imgDirs.length > 0
-      ? imgDirs
-          .map(
-            (dir) =>
-              `<button class="btn btn-primary upload-dir-btn" data-dir="${escapeHtml(dir)}">${escapeHtml(dir)}</button>`,
-          )
-          .join(" ")
-      : '<span class="t-muted">no categories</span>';
-
-  picker.innerHTML =
-    '<div class="upload-dir-picker-inner panel">' +
-    "<p>upload category</p>" +
-    `<div class="move-dir-list">${dirsHtml}</div>` +
-    '<br><button class="btn upload-dir-cancel">cancel</button>' +
-    "</div>";
-  document.body.appendChild(picker);
-  picker.tabIndex = -1;
-  picker.focus();
-
-  picker.querySelector(".upload-dir-cancel").addEventListener("click", () => picker.remove());
-  picker.addEventListener("click", (e) => {
-    if (e.target === picker) picker.remove();
-  });
-  picker.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") picker.remove();
-  });
-  // 카테고리 선택 후 파일 선택창 열기
-  for (const btn of picker.querySelectorAll(".upload-dir-btn")) {
-    btn.addEventListener("click", () => {
-      setUploadDir(btn.dataset.dir);
-      picker.remove();
-      document.getElementById("file_input").click();
-    });
-  }
-};
-
 document.getElementById("btn_upload").addEventListener("click", (e) => {
   if (e.currentTarget.classList.contains("needs-google")) return;
-  showUploadDirPicker();
+  // 카테고리 선택 후 파일 선택창 열기
+  showDirPicker("upload category", imgDirs, (dir) => {
+    setUploadDir(dir);
+    document.getElementById("file_input").click();
+  });
 });
 
 // 키보드 단축키
@@ -552,34 +513,14 @@ const SHORTCUTS_HELP = [
 ];
 
 const showShortcutsHelp = () => {
-  const existing = document.getElementById("shortcuts-help");
-  if (existing) {
-    existing.remove();
-    return;
-  }
-  const overlay = document.createElement("div");
-  overlay.id = "shortcuts-help";
-  overlay.className = "dialog-overlay";
   const rows = SHORTCUTS_HELP.map(
     ([k, desc]) => `<div class="sc-row"><kbd class="sc-key">${k}</kbd><span class="sc-desc">${desc}</span></div>`,
   ).join("");
-  overlay.innerHTML =
-    '<div class="dialog-inner panel">' +
+  openDialog(
     "<p>keyboard shortcuts</p>" +
-    `<div class="sc-list">${rows}</div>` +
-    '<div class="dialog-buttons"><button class="btn btn-primary sc-close">close</button></div>' +
-    "</div>";
-  document.body.appendChild(overlay);
-  overlay.tabIndex = -1;
-  overlay.focus();
-  const close = () => overlay.remove();
-  overlay.querySelector(".sc-close").addEventListener("click", close);
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) close();
-  });
-  overlay.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") close();
-  });
+      `<div class="sc-list">${rows}</div>` +
+      '<form method="dialog" class="dialog-buttons"><button class="btn btn-primary" autofocus>close</button></form>',
+  );
 };
 
 // viewport 중앙에 가장 가까운 이미지 컨테이너
@@ -625,7 +566,7 @@ const isTypingInField = () => {
   return false;
 };
 
-const hasOpenOverlay = () => document.querySelector(".img-overlay, .dialog-overlay, .upload-dir-picker") !== null;
+const hasOpenOverlay = () => document.querySelector(".img-overlay, dialog[open]") !== null;
 
 document.getElementById("btn_help")?.addEventListener("click", showShortcutsHelp);
 
