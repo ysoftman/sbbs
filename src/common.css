@@ -1,63 +1,94 @@
 /* ==========================================================================
    sbbs design tokens
-   Quiet gallery: 뉴트럴 zinc 위에 액센트 1색(rose). 이미지가 주인공이고
-   UI 는 여백과 hairline 으로만 구조를 만든다.
-   radius 는 8px 하나로 고정 (인터랙티브 요소, 미디어, 패널 전부 동일).
+   Elevated cards: 한 단계 낮은 캔버스(--bg) 위에 글, 그리드 타일, 헤더, 패널을
+   면(--surface)으로 올려 구획을 만든다. light/dark 가 같은 구조를 쓰고 값만 다르다.
+   액센트는 1색(rose). 이미지가 주인공이라 면은 무채색, 그림자는 캔버스 색조로만 tint 한다.
+
+   elevation (아래에서 위로)
+     --bg         캔버스. 페이지 바탕
+     --surface    면. 헤더 bar, 글 카드, 그리드 타일, 패널, 다이얼로그
+     --surface-2  면 안쪽 우물. 인풋, 버튼 hover, 미디어 자리표시, 노트
+     --overlay    다이얼로그/이미지 오버레이 scrim. 두 테마 모두 어둡게 깔아 패널이 묻히지 않게 한다
+
+   대비 (WCAG AA, 실제 놓이는 배경 기준)
+     --text-3 은 --bg, --surface, --surface-2 어디서든 4.5:1 이상
+     --accent 는 --accent-soft(탭 활성 pill) 위에서 4.5:1 이상
    ========================================================================== */
 
 :root {
   /* surfaces */
-  --bg: #09090b;
-  --surface: #131316;
-  --surface-2: #1c1c20;
-  --overlay: rgb(9 9 11 / 0.88);
+  --bg: #0b0b0e;
+  --surface: #151519;
+  --surface-2: #1f1f24;
+  --overlay: rgb(6 6 9 / 0.82);
 
-  /* lines */
-  --border: #27272a;
-  --border-strong: #3f3f46;
+  /* lines: dark 에서는 그림자가 잘 안 보이므로 면의 경계를 테두리가 맡는다 */
+  --border: #2c2c33;
+  --border-strong: #3f3f48;
 
   /* text hierarchy: 색이 아니라 명도로 위계를 만든다 */
-  --text: #fafafa;
-  --text-2: #a1a1aa;
-  --text-3: #71717a;
+  --text: #f4f4f6;
+  --text-2: #a9a9b4;
+  --text-3: #8b8b97;
 
   /* 액센트는 1색. 좋아요 활성, 포커스 링, 선택 상태에만 쓴다 */
   --accent: #fb7185;
   --accent-strong: #f43f5e;
   --accent-soft: rgb(251 113 133 / 0.14);
+  /* 액센트로 채운 면 위의 글자 */
+  --on-accent: #1f0a10;
   --danger: #f87171;
 
-  /* radius 는 두 단계로 고정한다.
-     --radius     버튼, 인풋, 미디어, 패널
-     --radius-sm  인라인 칩(키캡), 스크롤바
-     예외는 원형 아바타(50%)와 탭 활성 밑줄(0) 뿐이다. */
+  /* radius 규칙 (이 스케일 밖의 값은 쓰지 않는다)
+     --radius-lg    12px  면: 글 카드, 그리드 타일, 패널/다이얼로그, 노트, 오버레이 정보 bar
+     --radius        8px  인터랙티브 요소(버튼, 인풋)와 면 안쪽에 놓이는 미디어
+     --radius-sm     5px  인라인 칩(키캡), 스크롤바
+     --radius-pill        카테고리 탭 전용
+     예외: 원형 아바타(50%). 면 가장자리에 붙는 미디어(그리드 썸네일)는 radius 없이 면이 잘라낸다. */
+  --radius-lg: 12px;
   --radius: 8px;
   --radius-sm: 5px;
+  --radius-pill: 999px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --dur: 180ms;
 
-  --shadow-panel: 0 16px 48px rgb(0 0 0 / 0.5);
+  /* 그림자는 캔버스 색조로 tint */
+  --shadow-card: 0 1px 2px rgb(2 2 6 / 0.5);
+  --shadow-card-hover: 0 6px 20px rgb(2 2 6 / 0.55);
+  --shadow-panel: 0 20px 56px rgb(2 2 6 / 0.6);
+
+  /* 미디어 가장자리 hairline: 이미지가 면과 같은 색(흰/검은 이미지)이어도 경계가 보이게 한다 */
+  --media-edge: rgb(244 244 246 / 0.09);
+  /* scrim 은 두 테마 모두 어두우므로 오버레이 미디어 경계는 항상 밝은 선 */
+  --media-edge-scrim: rgb(244 244 246 / 0.14);
 }
 
+/* light: 차가운 회색 캔버스 위 off-white 면. 순백을 쓰지 않아 눈부심을 줄인다.
+   accent/danger 는 off-white 와 pill 배경 위에서 4.5:1 을 넘도록 명도를 한 단계 낮췄다. */
 :root.light {
-  --bg: #fafafa;
-  --surface: #ffffff;
-  --surface-2: #f4f4f5;
-  --overlay: rgb(250 250 250 / 0.9);
+  --bg: #e7e9ee;
+  --surface: #f8f9fb;
+  --surface-2: #eceef2;
+  --overlay: rgb(20 23 31 / 0.62);
 
-  --border: #e4e4e7;
-  --border-strong: #d4d4d8;
+  --border: #cdd2db;
+  --border-strong: #adb3c0;
 
-  --text: #18181b;
-  --text-2: #52525b;
-  --text-3: #a1a1aa;
+  --text: #171a21;
+  --text-2: #474c57;
+  --text-3: #5b606d;
 
-  --accent: #e11d48;
-  --accent-strong: #be123c;
-  --accent-soft: rgb(225 29 72 / 0.1);
-  --danger: #dc2626;
+  --accent: #be123c;
+  --accent-strong: #9f1239;
+  --accent-soft: rgb(190 18 60 / 0.1);
+  --on-accent: #fff1f2;
+  --danger: #b91c1c;
 
-  --shadow-panel: 0 16px 48px rgb(24 24 27 / 0.16);
+  --shadow-card: 0 1px 2px rgb(31 38 56 / 0.06), 0 2px 8px rgb(31 38 56 / 0.05);
+  --shadow-card-hover: 0 2px 4px rgb(31 38 56 / 0.06), 0 10px 24px rgb(31 38 56 / 0.1);
+  --shadow-panel: 0 20px 56px rgb(31 38 56 / 0.3);
+
+  --media-edge: rgb(23 26 33 / 0.1);
 }
 
 /* ==========================================================================
@@ -222,13 +253,14 @@ video {
   transform: none;
 }
 
+/* 인풋은 면 안의 우물(surface-2)로 한 단계 내려 놓는다 */
 .input,
 .textarea {
   width: 100%;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
   font: inherit;
   font-size: 14px;
@@ -251,7 +283,7 @@ video {
 .textarea:focus {
   outline: none;
   border-color: var(--accent);
-  background: var(--surface-2);
+  background: var(--surface);
 }
 
 .textarea {
@@ -264,12 +296,18 @@ video {
    surfaces
    ========================================================================== */
 
-/* 리스트 뷰 항목. 카드 상자 대신 hairline 과 여백으로 나눈다 */
-.card {
+/* 리스트 뷰 항목. 캔버스 위 면으로 올려 글 단위 구획을 만든다.
+   스켈레톤(.sk-row)도 같은 상자라 로딩 후 자리가 튀지 않는다. */
+.card,
+.sk-row {
   max-width: 100%;
   min-width: 0;
-  padding: 20px 0 24px;
-  border-top: 1px solid var(--border);
+  margin-bottom: 16px;
+  padding: 16px 20px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 .card > .title {
@@ -287,18 +325,18 @@ video {
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-panel);
   padding: 20px;
 }
 
-/* 버전 정보 */
+/* 버전 정보. 헤더 bar(면) 안에 놓이므로 우물 색으로 한 단계 내린다 */
 .note {
   margin: 0;
   padding: 14px 16px;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   font-size: 13px;
   color: var(--text-2);
   line-height: 1.7;
@@ -308,12 +346,14 @@ video {
    header
    ========================================================================== */
 
+/* 헤더는 캔버스와 구분되는 면(bar). 스크롤된 카드가 아래로 지나가도 경계가 유지된다 */
 .sticky-header {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--bg);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
 }
 
 .navbar-flex {
@@ -359,7 +399,7 @@ video {
   margin-left: auto;
 }
 
-/* 카테고리: 버튼 상자 대신 탭 */
+/* 카테고리: 버튼 상자 대신 pill 탭. 활성 탭은 accent-soft 로 채운다 */
 #img_buttons_row {
   display: flex;
   flex-wrap: wrap;
@@ -375,7 +415,8 @@ video {
 #img_buttons_row .btn {
   background: none;
   border-color: transparent;
-  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
 }
 
 #img_buttons_row .btn:hover {
@@ -384,18 +425,12 @@ video {
   color: var(--text);
 }
 
-#img_buttons_row .btn-active {
-  background: none;
-  border-color: transparent;
-  color: var(--text);
-  font-weight: 600;
-  box-shadow: inset 0 -2px 0 var(--accent);
-  border-radius: 0;
-}
-
+#img_buttons_row .btn-active,
 #img_buttons_row .btn-active:hover {
-  background: none;
-  color: var(--text);
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .version-row {
@@ -417,15 +452,11 @@ video {
 
 .index-body {
   margin: 0 auto;
-  padding: 16px 16px 0;
+  padding: 20px 16px 0;
 }
 
 .items > * {
   animation: fadeIn 0.25s var(--ease);
-}
-
-.items > .card:first-child {
-  border-top: 0;
 }
 
 .img-link {
@@ -449,6 +480,13 @@ video {
   font-size: 13px;
   color: var(--text-3);
   font-weight: 400;
+}
+
+/* 안쪽 hairline 이라 레이아웃 크기는 그대로 두고 흰/검은 이미지의 가장자리만 그린다 */
+img.thumbnail,
+.img-media video {
+  outline: 1px solid var(--media-edge);
+  outline-offset: -1px;
 }
 
 img.thumbnail {
@@ -518,17 +556,33 @@ img.thumbnail:hover {
   opacity: 1;
 }
 
-/* 그리드 뷰: 테두리도 그림자도 없이 이미지만 남긴다 */
+/* 그리드 뷰: 리스트와 같은 면 카드. 미디어는 카드 위쪽 가장자리까지 채우고 카드가 모서리를 잘라낸다.
+   스켈레톤(.sk-card)도 같은 상자. */
 #images.grid-mode {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 24px 16px;
+  gap: 16px;
 }
 
-.grid-card {
+.grid-card,
+.sk-card {
   min-width: 0;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
 }
 
+.grid-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* 미디어와 정보 영역 사이 선: 흰 이미지가 off-white 정보 영역에 녹지 않게 한다 */
 .grid-card-media {
   width: 100%;
   aspect-ratio: 1;
@@ -537,7 +591,7 @@ img.thumbnail:hover {
   align-items: center;
   justify-content: center;
   background: var(--surface-2);
-  border-radius: var(--radius);
+  border-bottom: 1px solid var(--border);
 }
 
 .grid-card-media .grid-thumb {
@@ -557,7 +611,7 @@ img.thumbnail:hover {
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  padding: 8px 2px 0;
+  padding: 9px 12px 10px;
 }
 
 .grid-card-name {
@@ -651,20 +705,8 @@ img.thumbnail:hover {
   color: var(--text-3);
 }
 
-/* 로딩 스켈레톤: 실제 카드와 같은 골격이라 콘텐츠가 도착해도 레이아웃이 밀리지 않는다 */
-.sk-card {
-  min-width: 0;
-}
-
-.sk-row {
-  padding: 20px 0 24px;
-  border-top: 1px solid var(--border);
-}
-
-.items > .sk-row:first-child {
-  border-top: 0;
-}
-
+/* 로딩 스켈레톤: 실제 카드와 같은 골격이라 콘텐츠가 도착해도 레이아웃이 밀리지 않는다.
+   상자 모양은 .card/.grid-card 규칙을 같이 쓴다. */
 .sk-media,
 .sk-line {
   position: relative;
@@ -674,14 +716,17 @@ img.thumbnail:hover {
 
 .sk-media {
   aspect-ratio: 1;
-  border-radius: var(--radius);
+  border-bottom: 1px solid var(--border);
 }
 
 .sk-line {
   height: 13px;
   width: 70%;
-  margin-top: 8px;
   border-radius: var(--radius-sm);
+}
+
+.sk-card .sk-line {
+  margin: 12px;
 }
 
 .sk-row .sk-title {
@@ -693,6 +738,8 @@ img.thumbnail:hover {
 .sk-row .sk-media {
   aspect-ratio: 4 / 3;
   max-width: min(56vw, 560px);
+  border-bottom: 0;
+  border-radius: var(--radius);
 }
 
 .sk-media::after,
@@ -931,10 +978,11 @@ img.thumbnail:hover {
   display: flex;
   gap: 12px;
   align-items: center;
-  padding: 8px 14px;
+  padding: 8px 8px 8px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
   font-size: 13px;
 }
 
@@ -960,6 +1008,8 @@ img.thumbnail:hover {
   max-width: 100%;
   max-height: calc(95vh - 60px);
   border-radius: var(--radius);
+  outline: 1px solid var(--media-edge-scrim);
+  outline-offset: -1px;
 }
 
 /* 단축키 목록 */
@@ -1077,7 +1127,8 @@ img.thumbnail:hover {
   max-width: 380px;
   margin: 100px auto 16px;
   padding: 32px 28px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 
 #message h1 {
@@ -1105,7 +1156,7 @@ img.thumbnail:hover {
   display: block;
   text-align: center;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   text-decoration: none;
   padding: 12px;
   border-radius: var(--radius);
@@ -1155,7 +1206,7 @@ img.thumbnail:hover {
 
   #images.grid-mode {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 18px 12px;
+    gap: 12px;
   }
 }
 
@@ -1183,6 +1234,16 @@ img.thumbnail:hover {
 
   .card > .title {
     font-size: 13px;
+  }
+
+  .card,
+  .sk-row {
+    margin-bottom: 12px;
+    padding: 12px 14px 14px;
+  }
+
+  .index-body {
+    padding-top: 12px;
   }
 
   .card > .title span[id$="_img_size"],
