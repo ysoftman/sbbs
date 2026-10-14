@@ -193,17 +193,19 @@ document.getElementById("btn_version").addEventListener("click", () => {
   el.style.display = el.style.display === "none" ? "" : "none";
 });
 
-// 다크/라이트 테마 토글
+// 다크/라이트 테마 토글. 초기 테마 클래스는 head 의 인라인 스크립트가 첫 페인트 전에 적용해 두었으므로
+// 여기서는 아이콘만 현재 클래스 상태에 맞추고, 사용자가 토글할 때만 localStorage 에 저장한다.
 const themeBtn = document.getElementById("btn_theme");
-const applyTheme = (light) => {
-  document.documentElement.classList.toggle("light", light);
-  const icon = document.getElementById("theme_icon");
-  icon.className = light ? "ph-fill ph-moon" : "ph-fill ph-sun";
-  localStorage.setItem("sbbs-theme", light ? "light" : "dark");
+const syncThemeIcon = () => {
+  const light = document.documentElement.classList.contains("light");
+  document.getElementById("theme_icon").className = light ? "ph-fill ph-moon" : "ph-fill ph-sun";
 };
-applyTheme(localStorage.getItem("sbbs-theme") === "light");
+syncThemeIcon();
 themeBtn.addEventListener("click", () => {
-  applyTheme(!document.documentElement.classList.contains("light"));
+  const light = !document.documentElement.classList.contains("light");
+  document.documentElement.classList.toggle("light", light);
+  localStorage.setItem("sbbs-theme", light ? "light" : "dark");
+  syncThemeIcon();
 });
 
 // 그리드/리스트 뷰 토글
@@ -594,6 +596,7 @@ const SHORTCUTS_HELP = [
   ["g", "scroll to top"],
   ["G", "scroll to bottom"],
   ["l", "toggle like (nearest image)"],
+  ["←/→", "prev/next image (in overlay)"],
   ["/", "focus search"],
   ["v", "toggle grid/list view"],
   ["t", "toggle theme"],

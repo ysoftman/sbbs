@@ -1315,6 +1315,28 @@ img.thumbnail:hover {
   font-size: 12px;
 }
 
+/* 오버레이 좌우 가장자리의 이전/다음 이동 버튼. 미디어 위에 떠 있어 반투명 패널로 띄운다 */
+.img-overlay-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  padding: 10px;
+  border-radius: 50%;
+  font-size: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-panel);
+}
+
+.img-overlay-prev {
+  left: 12px;
+}
+
+.img-overlay-next {
+  right: 12px;
+}
+
 .img-overlay img,
 .img-overlay video {
   max-width: 100%;
@@ -1611,6 +1633,8 @@ img.thumbnail:hover {
   .search-bar-clear,
   .msg-more-btn,
   .img-overlay-copy,
+  .img-overlay-nav,
+  .img-overlay-download,
   .img-message .btn,
   .dialog .btn,
   #btn_scroll_top,
@@ -1620,6 +1644,8 @@ img.thumbnail:hover {
   }
 
   .search-bar-clear,
+  .img-overlay-nav,
+  .img-overlay-download,
   #btn_scroll_top {
     min-width: 44px;
   }

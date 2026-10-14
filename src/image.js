@@ -67,10 +67,50 @@ const copyDeepLink = async (name, btn) => {
   }, 1500);
 };
 
-// 이미지 오버레이 표시 (파일 경로 + 이미지 사이즈)
+// 현재 화면에 렌더된 순서대로 파일 경로 목록. 그리드 카드와 like 버튼이 모두 data-name 을 가지므로 중복을 제거한다
+const getRenderedNames = () => [
+  ...new Set([...document.querySelectorAll("#images [data-name]")].map((el) => el.dataset.name)),
+];
+
+// 목록 링크의 텍스트가 display_name. 딥링크처럼 목록에 없는 파일은 파일명으로 대체한다
+const getRenderedDisplayName = (name) => {
+  const link = document.querySelector(`#images a[href="#${encodeURIComponent(name)}"]`);
+  return link?.textContent || name.split("/").pop();
+};
+
+const openRenderedImage = (name) => {
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+  showImageOverlay(publicUrl, name, getRenderedDisplayName(name));
+};
+
+// 원본 파일명(display_name)으로 다운로드. fetch 가 막히면 새 탭 열기로 대체한다
+const downloadFile = async (url, displayName, btn) => {
+  btn.disabled = true;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = displayName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  } catch (err) {
+    console.warn("download failed:", err);
+    window.open(url, "_blank", "noopener");
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+// 이미지 오버레이 표시 (파일 경로 + 이미지 사이즈). 목록에 여러 장이 있으면 ←/→ 키와 버튼으로 이동한다
 const showImageOverlay = (url, name, displayName) => {
   document.querySelector(".img-overlay")?.remove();
   const isVideo = isVideoName(name);
+  const renderedNames = getRenderedNames();
+  const canNavigate = renderedNames.includes(name) && renderedNames.length > 1;
   const overlay = document.createElement("div");
   overlay.className = "img-overlay";
   overlay.onclick = (e) => {
@@ -83,20 +123,54 @@ const showImageOverlay = (url, name, displayName) => {
     `<span class="img-overlay-size"></span>` +
     `<button class="btn btn-primary img-overlay-copy" title="copy link" aria-label="copy link">` +
     `<i class="ph-fill ph-link"></i> copy link</button>` +
+    `<button class="btn btn-primary img-overlay-download" title="download" aria-label="download">` +
+    `<i class="ph-fill ph-download-simple"></i></button>` +
     `</div>` +
-    (isVideo ? `<video src="${url}" controls autoplay muted playsinline></video>` : `<img src="${url}">`) +
-    `</div>`;
+    (isVideo
+      ? `<video src="${url}" controls autoplay muted playsinline></video>`
+      : `<img src="${url}" decoding="async">`) +
+    `</div>` +
+    (canNavigate
+      ? '<button class="btn img-overlay-nav img-overlay-prev" title="previous image (←)" aria-label="previous image">' +
+        '<i class="ph-fill ph-caret-left"></i></button>' +
+        '<button class="btn img-overlay-nav img-overlay-next" title="next image (→)" aria-label="next image">' +
+        '<i class="ph-fill ph-caret-right"></i></button>'
+      : "");
   document.body.appendChild(overlay);
   overlay.tabIndex = -1;
   overlay.focus();
+  const navigate = (direction) => {
+    const names = getRenderedNames();
+    if (names.length < 2) return;
+    const idx = names.indexOf(name);
+    if (idx === -1) return;
+    openRenderedImage(names[(idx + direction + names.length) % names.length]);
+  };
   overlay.addEventListener("keydown", (e) => {
     if (e.key === "Escape") overlay.remove();
+    // 비디오에 포커스가 있으면 화살표 키는 재생 탐색(시크)에 양보한다
+    else if (e.target.tagName !== "VIDEO" && e.key === "ArrowLeft") navigate(-1);
+    else if (e.target.tagName !== "VIDEO" && e.key === "ArrowRight") navigate(1);
   });
   const copyBtn = overlay.querySelector(".img-overlay-copy");
   copyBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     copyDeepLink(name, copyBtn);
   });
+  const downloadBtn = overlay.querySelector(".img-overlay-download");
+  downloadBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    downloadFile(url, displayName, downloadBtn);
+  });
+  for (const [selector, direction] of [
+    [".img-overlay-prev", -1],
+    [".img-overlay-next", 1],
+  ]) {
+    overlay.querySelector(selector)?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      navigate(direction);
+    });
+  }
   if (isVideo) return;
   const img = overlay.querySelector("img");
   img.addEventListener("load", () => {
@@ -177,7 +251,7 @@ const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet, displayNa
   const msgId = toSafeId(name);
 
   const mediaHtml = isImage
-    ? `<img class="grid-thumb" loading="lazy" src="${publicUrl}" alt="${escapeHtml(displayName)}">`
+    ? `<img class="grid-thumb" loading="lazy" decoding="async" src="${publicUrl}" alt="${escapeHtml(displayName)}">`
     : `<video class="grid-thumb" muted preload="metadata"><source type="video/mp4" src="${publicUrl}"></video>`;
 
   return (
@@ -236,7 +310,7 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
   const actionsHtml = `<span class="img-file-actions">${moveHtml}${deleteHtml}</span>`;
   const linkHtml = `<a class="img-link" href="#${encodeURIComponent(name)}">${escapeHtml(displayName)}</a>`;
   if (isImage) {
-    const mediaHtml = `<img class="thumbnail" loading="lazy" src="${publicUrl}" alt="${escapeHtml(displayName)}">`;
+    const mediaHtml = `<img class="thumbnail" loading="lazy" decoding="async" src="${publicUrl}" alt="${escapeHtml(displayName)}">`;
     return (
       `<div class="card">` +
       `<p class="title"><span class="title-main">${linkHtml} <span id="${msgId}_img_size"></span> ${metaHtml}</span> ${actionsHtml}</p>` +

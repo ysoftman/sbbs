@@ -15,6 +15,17 @@
       content="sbbs - a tiny board for sharing images"
     />
     <meta property="og:type" content="website" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0e" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#e7e9ee" />
+    <script>
+      // 첫 페인트 전에 테마를 적용해 깜빡임(FOUC)을 막는다. 저장값이 없으면 시스템 설정을 따른다.
+      try {
+        const saved = localStorage.getItem("sbbs-theme");
+        const light = saved ? saved === "light" : window.matchMedia("(prefers-color-scheme: light)").matches;
+        document.documentElement.classList.toggle("light", light);
+      } catch {}
+    </script>
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
   </head>
   <body>
     <header class="sticky-header">
