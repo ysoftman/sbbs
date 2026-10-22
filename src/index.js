@@ -600,6 +600,7 @@ const SHORTCUTS_HELP = [
   ["/", "focus search"],
   ["v", "toggle grid/list view"],
   ["t", "toggle theme"],
+  ["⌘/Ctrl+V", "upload copied image (google login)"],
   ["?", "show this help"],
   ["Esc", "close dialog/overlay"],
 ];
@@ -737,9 +738,7 @@ if (scrollTopBtn) {
   updateScrollTopBtn();
 }
 
-document.getElementById("file_input").addEventListener("change", async (e) => {
-  const files = e.target.files;
-  if (!files || files.length === 0) return;
+const uploadFiles = async (files) => {
   const uploadBtn = document.getElementById("btn_upload");
   // 아이콘까지 되돌리도록 textContent 가 아닌 innerHTML 을 보관한다
   const originalHtml = uploadBtn.innerHTML;
@@ -767,6 +766,25 @@ document.getElementById("file_input").addEventListener("change", async (e) => {
   } finally {
     uploadBtn.innerHTML = originalHtml;
     uploadBtn.disabled = false;
-    e.target.value = "";
   }
+};
+
+document.getElementById("file_input").addEventListener("change", async (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  if (files.length > 0) await uploadFiles(files);
+});
+
+// 클립보드 이미지(copy image) 붙여넣기 업로드: 카테고리 선택 후 업로드 버튼과 같은 흐름을 탄다
+document.addEventListener("paste", (e) => {
+  if (isTypingInField() || hasOpenOverlay()) return;
+  const uploadBtn = document.getElementById("btn_upload");
+  if (uploadBtn.disabled || uploadBtn.classList.contains("needs-google")) return;
+  const files = [...e.clipboardData.files];
+  if (files.length === 0) return;
+  e.preventDefault();
+  showDirPicker("upload category", imgDirs, (dir) => {
+    setUploadDir(dir);
+    uploadFiles(files);
+  });
 });
