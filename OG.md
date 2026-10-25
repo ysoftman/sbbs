@@ -8,6 +8,8 @@ SPA 해시 딥링크(`#category/filename`)는 크롤러(Slack, Twitter, Discord,
 ## 동작 방식
 
 1. 사용자가 이미지 오버레이의 `copy link` 를 누르면 다음 형태의 URL 이 클립보드에 복사된다.
+   터치 기기(`pointer: coarse`)에서 `navigator.share` 를 지원하면 버튼이 `share` 로 바뀌고 같은 URL 로 네이티브 공유 시트를 띄운다.
+   공유 시트를 닫은 취소는 조용히 무시하고, 그 외 실패는 클립보드 복사로 대체한다.
 
    ```text
    https://<project-id>.supabase.co/functions/v1/og-preview?p=<category>/<filename>

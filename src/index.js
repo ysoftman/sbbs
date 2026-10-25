@@ -3,7 +3,7 @@ import "@phosphor-icons/web/fill";
 import "./common.css";
 
 import { getCurrentUser, isAdmin, supabase } from "./common.js";
-import { loadImages, showOverlayByName } from "./image.js";
+import { loadImages, setLoadMoreHandler, showOverlayByName } from "./image.js";
 import { createDir, getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
 import {
   emptyStateHtml,
@@ -19,20 +19,34 @@ import {
 
 const LIST_PAGE_SIZE = 2;
 const GRID_PAGE_SIZE = 12;
+const SEARCH_LIMIT = 50;
+// PostgREST 는 like/ilike 패턴의 * 를 % 로 바꿔 전체가 매치되므로 검색어의 * 는 공백으로 바꾼다
+const toSearchQuery = (raw) => raw.replace(/\*/g, " ").trim();
 let viewMode = localStorage.getItem("sbbs-view-mode") || "list";
 const getPageSize = () => (viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE);
 
 let currentDir = "";
 let currentOffset = 0;
-let allImagesLoaded = false;
+// 첫 화면을 불러오기 전에는 sentinel 이 보여도 추가 로드하지 않는다
+let allImagesLoaded = true;
 // latest / my likes / 검색처럼 전체 목록을 먼저 받는 화면의 목록. 카테고리 화면은 storage 페이지네이션을 쓰므로 비어 있다.
 let imagePool = [];
+// 카테고리 화면에서 지금까지 불러온 파일. 삭제·이동된 파일이 이 안에 있을 때만 storage offset 을 당긴다
+const loadedNames = new Set();
+// 삭제·이동으로 storage offset 을 당긴 횟수. 다음 페이지 요청 중에 바뀌었는지 확인하는 데 쓴다
+let removedSeq = 0;
 let loadedDir = "";
+// 검색 화면의 검색어와 결과 수 (빈 상태 문구, 삭제·이동 후 결과 수 갱신용). truncated 는 limit 에 닿아 더 있을 수 있다는 뜻
+let searchQuery = "";
+let searchCount = 0;
+let searchTruncated = false;
 // loadImg/loadLatest 가 호출될 때마다 증가. 진행 중인 loadMoreImages 가 stale 인지 식별한다.
 let loadGeneration = 0;
 const staleChecker = (gen) => () => gen !== loadGeneration;
-// 추가 로드 중인 generation. stale 요청이 새 화면의 추가 로드를 막지 않도록 generation 단위로 잠근다.
+// 추가 로드 중인 generation 과 그 Promise. stale 요청이 새 화면의 추가 로드를 막지 않도록 generation 단위로 잠그고,
+// 같은 화면에서 다시 부르면(스크롤 + 오버레이 다음 이미지) 새로 요청하지 않고 진행 중인 로드를 기다리게 한다.
 let loadingMoreGen = -1;
+let loadingMore = Promise.resolve();
 
 const buildMetaMap = (files) => {
   const metaMap = {};
@@ -40,6 +54,36 @@ const buildMetaMap = (files) => {
     metaMap[f.name] = { created_at: f.created_at, size: f.size };
   }
   return metaMap;
+};
+
+// 화면별 빈 상태. 처음 불러왔을 때와 마지막 항목이 삭제·이동됐을 때 같이 쓴다
+const emptyViewHtml = (view) => {
+  switch (view) {
+    case "__latest__":
+      return emptyStateHtml("image", "Nothing here yet", "Upload an image to get started.");
+    case "__my_likes__":
+      return emptyStateHtml("thumbs-up", "No likes yet", "Tap the thumbs-up on any image to save it here.");
+    case "__search__":
+      return emptyStateHtml(
+        "magnifying-glass",
+        `No results for "${escapeHtml(searchQuery)}"`,
+        "Search matches file names and comments. Try a shorter word.",
+      );
+    default:
+      return emptyStateHtml("image", "Nothing here yet", "Upload an image to start this category.");
+  }
+};
+
+// 목록 조회 실패. 비어 있는 것과 구분되게 보여주고 다시 시도할 수 있게 한다
+const showLoadError = (retry) => {
+  const imagesEl = document.getElementById("images");
+  imagesEl.innerHTML = emptyStateHtml("warning-circle", "Couldn't load", "Check your connection and try again.");
+  const retryBtn = document.createElement("button");
+  retryBtn.type = "button";
+  retryBtn.className = "btn btn-primary";
+  retryBtn.innerHTML = '<i class="ph-fill ph-arrow-clockwise"></i> retry';
+  retryBtn.addEventListener("click", () => retry());
+  imagesEl.querySelector(".empty-state").append(retryBtn);
 };
 
 async function loadImg(path) {
@@ -50,6 +94,7 @@ async function loadImg(path) {
   // 로딩 중 loadMoreImages 가 발화하지 않도록 true
   allImagesLoaded = true;
   imagePool = [];
+  loadedNames.clear();
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML = "";
   // sentinel 을 로딩 인디케이터로 사용 (중앙 정렬, 단일 표시)
@@ -59,29 +104,42 @@ async function loadImg(path) {
   const imgFiles = await getImageList(path, 0, pageSize + 1);
   // 그 사이에 다른 화면 전환이 일어났다면 결과 폐기
   if (gen !== loadGeneration) return;
+  if (imgFiles === null) {
+    showLoadError(() => loadImg(path));
+    updateSentinel();
+    return;
+  }
   const hasMore = imgFiles.length > pageSize;
   const filesToLoad = hasMore ? imgFiles.slice(0, pageSize) : imgFiles;
   allImagesLoaded = !hasMore;
   currentOffset = filesToLoad.length;
 
   if (filesToLoad.length === 0) {
-    imagesEl.innerHTML = emptyStateHtml("image", "Nothing here yet", "Upload an image to start this category.");
+    imagesEl.innerHTML = emptyViewHtml(path);
     updateSentinel();
     return;
   }
 
   const imgNames = filesToLoad.map((f) => f.name);
+  for (const name of imgNames) loadedNames.add(name);
   const metaMap = buildMetaMap(filesToLoad);
   await loadImages("images", imgNames, metaMap, false, viewMode, staleChecker(gen));
   if (gen !== loadGeneration) return;
   updateSentinel();
 }
 
-async function loadMoreImages() {
-  if (loadingMoreGen === loadGeneration || allImagesLoaded) return;
+// 다음 페이지를 #images 에 붙인다. 진행 중이면 그 로드를 기다리고, 더 없으면 바로 resolve 한다 (image.js setLoadMoreHandler 계약)
+function loadMoreImages() {
+  if (loadingMoreGen === loadGeneration) return loadingMore;
+  if (allImagesLoaded) return Promise.resolve();
   const gen = loadGeneration;
   loadingMoreGen = gen;
+  loadingMore = appendNextPage(gen);
+  return loadingMore;
+}
 
+async function appendNextPage(gen) {
+  let failed = false;
   try {
     const pageSize = getPageSize();
     if (imagePool.length > 0) {
@@ -97,9 +155,20 @@ async function loadMoreImages() {
         if (gen !== loadGeneration) return;
       }
     } else {
-      const imgFiles = await getImageList(currentDir, currentOffset, pageSize + 1);
-      // fetch 사이에 화면 전환됐으면 폐기 (이전 카테고리 결과를 새 화면에 append 하는 것 방지)
-      if (gen !== loadGeneration) return;
+      // 요청 중에 이미 불러온 파일이 삭제·이동되면(removedSeq 증가) 응답이 당겨지기 전/후 어느 순서인지 알 수 없어
+      // 한 장을 건너뛸 수 있으므로 그 응답은 버리고 당겨진 offset 으로 다시 요청한다 (연속 삭제에 대비해 최대 3번)
+      let imgFiles = null;
+      for (let tries = 0; tries < 3; tries++) {
+        const seq = removedSeq;
+        imgFiles = await getImageList(currentDir, currentOffset, pageSize + 1);
+        // fetch 사이에 화면 전환됐으면 폐기 (이전 카테고리 결과를 새 화면에 append 하는 것 방지)
+        if (gen !== loadGeneration) return;
+        if (imgFiles === null || seq === removedSeq) break;
+      }
+      if (imgFiles === null) {
+        failed = true;
+        return;
+      }
       const hasMore = imgFiles.length > pageSize;
       const filesToLoad = hasMore ? imgFiles.slice(0, pageSize) : imgFiles;
       allImagesLoaded = !hasMore;
@@ -107,14 +176,21 @@ async function loadMoreImages() {
 
       if (filesToLoad.length > 0) {
         const imgNames = filesToLoad.map((f) => f.name);
+        for (const name of imgNames) loadedNames.add(name);
         const metaMap = buildMetaMap(filesToLoad);
         await loadImages("images", imgNames, metaMap, true, viewMode, staleChecker(gen));
         if (gen !== loadGeneration) return;
       }
     }
+  } catch (err) {
+    console.warn("loadMoreImages error:", err);
+    failed = true;
   } finally {
     if (loadingMoreGen === gen) loadingMoreGen = -1;
-    if (gen === loadGeneration) updateSentinel();
+    if (gen === loadGeneration) {
+      if (failed) showLoadMoreError();
+      else updateSentinel();
+    }
   }
 }
 
@@ -132,6 +208,13 @@ searchBar.innerHTML =
   '<button type="button" class="btn search-bar-clear" title="clear search" aria-label="clear search"><i class="ph-fill ph-x-circle"></i></button>';
 document.getElementById("images").before(searchBar);
 const searchBarText = searchBar.querySelector(".search-bar-text");
+const searchQueryHtml = () => `<span class="t-strong">"${escapeHtml(searchQuery)}"</span>`;
+// 결과 수 문구. 삭제·이동으로 결과가 줄면 다시 그린다
+const renderSearchCount = () => {
+  const count = `${searchCount}${searchTruncated ? "+" : ""}`;
+  const noun = searchCount === 1 && !searchTruncated ? "result" : "results";
+  searchBarText.innerHTML = `${count} ${noun} for ${searchQueryHtml()}`;
+};
 searchBar.querySelector(".search-bar-clear").addEventListener("click", () => {
   document.getElementById("search_input").value = "";
   loadLatest();
@@ -168,6 +251,23 @@ const scrollObserver = new IntersectionObserver(
   { rootMargin: "300px" },
 );
 scrollObserver.observe(sentinel);
+
+// 추가 로드 실패: sentinel 감시를 멈춰 재요청이 반복되지 않게 하고, 다시 시도 버튼으로만 이어서 불러온다.
+// 다음 updateSentinel(성공한 로드, 화면 전환)이 감시를 다시 건다.
+const showLoadMoreError = () => {
+  scrollObserver.unobserve(sentinel);
+  sentinel.style.display = "";
+  sentinel.innerHTML =
+    '<div class="load-more-error">Couldn\'t load more' +
+    '<button type="button" class="btn"><i class="ph-fill ph-arrow-clockwise"></i> retry</button></div>';
+  sentinel.querySelector("button").addEventListener("click", () => {
+    showSentinelLoading();
+    loadMoreImages();
+  });
+};
+
+// 오버레이에서 목록 끝의 다음 이미지로 넘길 때도 같은 추가 로드를 쓴다
+setLoadMoreHandler(loadMoreImages);
 
 // URL hash 에서 이미지 경로 파싱 (예: #dir/image.jpg → { dir: "dir", image: "dir/image.jpg" })
 const parseHash = () => {
@@ -224,6 +324,8 @@ const reloadCurrentView = () => {
   } else if (loadedDir === "__my_likes__") {
     document.getElementById("btn_my_likes").click();
   } else if (loadedDir === "__search__") {
+    // 입력란에 아직 검색하지 않은 값(빈칸, * 만 등)이 있어도 지금 화면의 검색을 다시 불러온다
+    document.getElementById("search_input").value = searchQuery;
     doSearch();
   } else {
     loadDirFromHash(parseHash(), true);
@@ -235,8 +337,15 @@ document.getElementById("btn_view_toggle").addEventListener("click", () => {
   reloadCurrentView();
 });
 
-const imgDirs = await getImageDirs("");
-if (imgDirs.length === 0) {
+const fetchedDirs = await getImageDirs("");
+// 카테고리 목록을 못 받으면(null) imgDirs 가 비어 "비어 있음"으로 보이므로, 시작 화면을 불러오지 않고
+// imgDirs 에 기대는 화면(latest)과 동작(업로드·카테고리 추가)도 오류로 처리한다. 다시 시도는 목록부터 다시 받도록 새로고침한다
+const dirsFailed = fetchedDirs === null;
+const imgDirs = fetchedDirs ?? [];
+const showDirsError = () => showLoadError(() => window.location.reload());
+if (dirsFailed) {
+  showDirsError();
+} else if (imgDirs.length === 0) {
   document.getElementById("images").innerHTML = emptyStateHtml(
     "folder-open",
     "No categories yet",
@@ -359,6 +468,8 @@ const updateActiveDir = (dir) => {
 
 const loadDirFromHash = (info, force = false) => {
   if (!info || !imgDirs.includes(info.dir)) return false;
+  // 검색 화면에서 해시 링크로 넘어와도 ?q= 는 지우지 않는다. 해시만 바뀐 이동이어야 뒤로가기에서 hashchange 가 나
+  // showViewFromUrl 이 검색 화면을 되살린다 (새로고침은 해시가 우선이라 카테고리 그대로)
   if (info.dir !== loadedDir || force) {
     loadedDir = info.dir;
     updateActiveDir(info.dir);
@@ -386,7 +497,7 @@ const loadPool = async (gen, pool) => {
 const loadLatest = async () => {
   loadGeneration++;
   const gen = loadGeneration;
-  history.replaceState(null, "", window.location.pathname);
+  history.replaceState(history.state, "", window.location.pathname);
   updateActiveDir("__latest__");
   loadedDir = "__latest__";
   currentOffset = 0;
@@ -399,13 +510,28 @@ const loadLatest = async () => {
   // sentinel 을 로딩 인디케이터로 사용 (중앙 정렬, 단일 표시)
   showSentinelLoading();
 
+  if (dirsFailed) {
+    showDirsError();
+    updateSentinel();
+    return;
+  }
+
   // 모든 카테고리에서 이미지 목록을 동시에 가져와서 최신순 정렬 (카테고리당 최대 1000개)
-  const allFiles = (await Promise.all(imgDirs.map((dir) => getImageList(dir, 0, 1000)))).flat();
+  const lists = await Promise.all(imgDirs.map((dir) => getImageList(dir, 0, 1000)));
   if (gen !== loadGeneration) return;
+  // 일부 카테고리만 실패하면 받은 것만 보여주고, 전부 실패하면 오류 상태
+  const failedDirs = imgDirs.filter((_, i) => lists[i] === null);
+  if (failedDirs.length > 0 && failedDirs.length === imgDirs.length) {
+    showLoadError(loadLatest);
+    updateSentinel();
+    return;
+  }
+  if (failedDirs.length > 0) console.warn("loadLatest: failed to list", failedDirs);
+  const allFiles = lists.filter(Boolean).flat();
   allFiles.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   if (allFiles.length === 0) {
-    imagesEl.innerHTML = emptyStateHtml("image", "Nothing here yet", "Upload an image to get started.");
+    imagesEl.innerHTML = emptyViewHtml("__latest__");
     allImagesLoaded = true;
     updateSentinel();
     return;
@@ -416,16 +542,25 @@ const loadLatest = async () => {
 
 document.getElementById("btn_latest").addEventListener("click", loadLatest);
 
-const hashInfo = parseHash();
-if (!loadDirFromHash(hashInfo, true)) {
-  // 기본 홈은 최신 이미지 표시
-  loadLatest();
-}
+// URL 에 맞춰 화면을 고른다 (시작, hashchange 공통). 우선순위: 해시 딥링크(#dir, #dir/file) > 검색어(?q=) > 최신 이미지(기본 홈).
+// 뒤로가기 등으로 해시가 없어지거나 모르는 카테고리가 되면 남은 URL 에 맞는 화면으로 돌아간다. 이미 그 화면이면 다시 불러오지 않는다
+const showViewFromUrl = () => {
+  if (loadDirFromHash(parseHash())) return;
+  const query = toSearchQuery(new URLSearchParams(window.location.search).get("q") ?? "");
+  if (query) {
+    if (loadedDir === "__search__" && query === searchQuery) return;
+    document.getElementById("search_input").value = query;
+    doSearch();
+  } else if (loadedDir !== "__latest__") {
+    loadLatest();
+  }
+};
 
-// hash 변경 시 카테고리 또는 이미지로 이동
-window.addEventListener("hashchange", () => {
-  loadDirFromHash(parseHash());
-});
+if (!dirsFailed) showViewFromUrl();
+
+// hash 변경(카테고리 탭, 딥링크, 뒤로가기) 시 URL 에 맞는 화면으로 이동.
+// 오버레이는 같은 URL 로 기록을 쌓고 back 하므로 정상적으로 닫을 때는 hashchange 가 나지 않는다
+window.addEventListener("hashchange", () => showViewFromUrl());
 
 const currentUploadUser = await getCurrentUser();
 // 비활성 버튼 클릭 시 로그인 안내 팝업
@@ -447,7 +582,7 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   if (document.getElementById("btn_my_likes").classList.contains("needs-google")) return;
   loadGeneration++;
   const gen = loadGeneration;
-  history.replaceState(null, "", window.location.pathname);
+  history.replaceState(history.state, "", window.location.pathname);
   updateActiveDir("__my_likes__");
   loadedDir = "__my_likes__";
   allImagesLoaded = true;
@@ -458,19 +593,26 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   imagesEl.innerHTML = skeletonHtml(viewMode);
 
   const user = await getCurrentUser();
+  if (gen !== loadGeneration) return;
   if (!user) {
     imagesEl.innerHTML = "";
     return;
   }
-  const { data: likes } = await supabase
+  const { data: likes, error } = await supabase
     .from("image_likes")
     .select("image_name")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
   if (gen !== loadGeneration) return;
+  if (error) {
+    console.warn("my likes error:", error);
+    showLoadError(reloadCurrentView);
+    updateSentinel();
+    return;
+  }
 
   if (!likes || likes.length === 0) {
-    imagesEl.innerHTML = emptyStateHtml("thumbs-up", "No likes yet", "Tap the thumbs-up on any image to save it here.");
+    imagesEl.innerHTML = emptyViewHtml("__my_likes__");
     updateSentinel();
     return;
   }
@@ -481,58 +623,72 @@ document.getElementById("btn_my_likes").addEventListener("click", async () => {
   );
 });
 
-// 검색 기능 (파일명 + 메시지 내용)
-const SEARCH_LIMIT = 50;
-const doSearch = async () => {
-  const query = document.getElementById("search_input").value.trim();
-  if (!query) return;
+// 검색 기능 (파일명 + 메시지 내용). 시작 시 ?q= 로 바로 부를 수 있도록 함수 선언(호이스팅)으로 둔다
+async function doSearch() {
+  const input = document.getElementById("search_input");
+  const query = toSearchQuery(input.value);
+  if (!query) {
+    // * 만 넣은 것처럼 정리하면 비는 입력은 검색하지 않고, 입력란을 지금 화면의 검색어로 되돌려 결과 바와 맞춘다
+    if (input.value.trim()) input.value = loadedDir === "__search__" ? searchQuery : "";
+    return;
+  }
+  // 입력란도 실제로 검색한 값으로 맞춘다 (예: "cat*" → "cat")
+  input.value = query;
   loadGeneration++;
   const gen = loadGeneration;
 
-  history.replaceState(null, "", window.location.pathname);
+  // 새로고침·공유해도 같은 검색이 열리도록 검색어를 URL 에 남긴다 (해시는 지운다)
+  history.replaceState(history.state, "", `${window.location.pathname}?q=${encodeURIComponent(query)}`);
   updateActiveDir("__search__");
   loadedDir = "__search__";
+  searchQuery = query;
   allImagesLoaded = true;
   currentOffset = 0;
   imagePool = [];
 
-  const safeQuery = `<span class="t-strong">"${escapeHtml(query)}"</span>`;
+  const safeQuery = searchQueryHtml();
   searchBarText.innerHTML = `Searching for ${safeQuery}…`;
   const imagesEl = document.getElementById("images");
   imagesEl.innerHTML = skeletonHtml(viewMode);
 
-  // 파일명(display_name 은 원본 파일명이라 검색어를 그대로 매칭) + 메시지 내용 검색을 동시에
-  const [{ data: fileMatches }, { data: msgMatches }] = await Promise.all([
+  // 파일명(display_name 은 원본 파일명이라 검색어를 그대로 매칭) + 메시지 내용 검색을 동시에.
+  // 검색어의 %, _, \ 는 ilike 와일드카드/이스케이프 문자이므로 글자 그대로 찾도록 \ 로 이스케이프한다
+  const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const [{ data: fileMatches, error: fileErr }, { data: msgMatches, error: msgErr }] = await Promise.all([
     supabase
       .from("image_info")
       .select("file_path")
-      .ilike("display_name", `%${query}%`)
+      .ilike("display_name", pattern)
       .order("created_at", { ascending: false })
       .limit(SEARCH_LIMIT),
     supabase
       .from("image_messages")
       .select("image_name")
-      .ilike("message", `%${query}%`)
+      .ilike("message", pattern)
       .order("created_at", { ascending: false })
       .limit(SEARCH_LIMIT),
   ]);
   if (gen !== loadGeneration) return;
+  // 한쪽이라도 실패하면 결과가 빠졌을 수 있으므로 "결과 없음" 대신 오류 상태
+  if (fileErr || msgErr) {
+    console.warn("search error:", fileErr || msgErr);
+    searchBarText.innerHTML = `Couldn't search for ${safeQuery}`;
+    showLoadError(reloadCurrentView);
+    updateSentinel();
+    return;
+  }
 
   // 결과 합치기 (Set 이 삽입 순서를 유지하므로 중복 제거 + 파일명 검색 우선)
   const imgNames = [
     ...new Set([...(fileMatches || []).map((r) => r.file_path), ...(msgMatches || []).map((r) => r.image_name)]),
   ];
   // 한쪽이라도 limit 에 닿았으면 더 있을 수 있으므로 + 를 붙인다
-  const truncated = fileMatches?.length === SEARCH_LIMIT || msgMatches?.length === SEARCH_LIMIT;
-  const count = `${imgNames.length}${truncated ? "+" : ""}`;
-  searchBarText.innerHTML = `${count} ${imgNames.length === 1 && !truncated ? "result" : "results"} for ${safeQuery}`;
+  searchCount = imgNames.length;
+  searchTruncated = fileMatches?.length === SEARCH_LIMIT || msgMatches?.length === SEARCH_LIMIT;
+  renderSearchCount();
 
   if (imgNames.length === 0) {
-    imagesEl.innerHTML = emptyStateHtml(
-      "magnifying-glass",
-      `No results for "${escapeHtml(query)}"`,
-      "Search matches file names and comments. Try a shorter word.",
-    );
+    imagesEl.innerHTML = emptyViewHtml("__search__");
     updateSentinel();
     return;
   }
@@ -541,20 +697,29 @@ const doSearch = async () => {
     gen,
     imgNames.map((name) => ({ name })),
   );
-};
+}
 
 document.getElementById("btn_search").addEventListener("click", doSearch);
 document.getElementById("search_input").addEventListener("keydown", (e) => {
   if (e.key === "Enter") doSearch();
 });
 
+// 업로드 대상 카테고리 선택. 카테고리 목록을 못 받았으면 고를 수 없으므로 알리고 끝낸다 (image.js 이동 picker 와 같은 문구)
+const pickUploadDir = (onSelect) => {
+  if (dirsFailed) {
+    showAlert("failed to load categories");
+    return;
+  }
+  showDirPicker("upload category", imgDirs, (dir) => {
+    setUploadDir(dir);
+    onSelect();
+  });
+};
+
 document.getElementById("btn_upload").addEventListener("click", (e) => {
   if (e.currentTarget.classList.contains("needs-google")) return;
   // 카테고리 선택 후 파일 선택창 열기
-  showDirPicker("upload category", imgDirs, (dir) => {
-    setUploadDir(dir);
-    document.getElementById("file_input").click();
-  });
+  pickUploadDir(() => document.getElementById("file_input").click());
 });
 
 // admin 전용: 빈 카테고리 추가. 카테고리명은 Storage 경로가 되므로 기존 카테고리처럼 ASCII 소문자/숫자/- 만 허용한다.
@@ -564,6 +729,11 @@ isAdmin().then((admin) => {
   if (admin) addCategoryBtn.style.display = "";
 });
 addCategoryBtn.addEventListener("click", async () => {
+  // 기존 목록을 모르면 중복 확인과 탭 갱신을 할 수 없다
+  if (dirsFailed) {
+    await showAlert("failed to load categories");
+    return;
+  }
   const { dialog, closed } = openDialog(
     "<p>new category</p>" +
       '<form method="dialog">' +
@@ -601,6 +771,8 @@ const SHORTCUTS_HELP = [
   ["v", "toggle grid/list view"],
   ["t", "toggle theme"],
   ["⌘/Ctrl+V", "upload copied image (google login)"],
+  ["drag & drop", "upload dropped files (google login)"],
+  ["⌘/Ctrl+Enter", "save comment"],
   ["?", "show this help"],
   ["Esc", "close dialog/overlay"],
 ];
@@ -759,7 +931,7 @@ const uploadFiles = async (files) => {
     if (uploaded > 0) {
       // loadImg 만 부르면 loadedDir/활성 버튼/hash 가 이전 화면(latest 등)에 머무르므로 라우팅을 거친다
       const dir = uploadDir || currentDir;
-      history.replaceState(null, "", `#${encodeURIComponent(dir)}`);
+      history.replaceState(history.state, "", `#${encodeURIComponent(dir)}`);
       loadDirFromHash({ dir, image: null }, true);
       refreshImageCount();
     }
@@ -775,7 +947,10 @@ document.getElementById("file_input").addEventListener("change", async (e) => {
   if (files.length > 0) await uploadFiles(files);
 });
 
-// 클립보드 이미지(copy image) 붙여넣기 업로드: 카테고리 선택 후 업로드 버튼과 같은 흐름을 탄다
+// 붙여넣기·끌어다 놓기 업로드: 카테고리 선택 후 업로드 버튼과 같은 흐름을 탄다
+const pickDirAndUpload = (files) => pickUploadDir(() => uploadFiles(files));
+
+// 클립보드 이미지(copy image) 붙여넣기 업로드
 document.addEventListener("paste", (e) => {
   if (isTypingInField() || hasOpenOverlay()) return;
   const uploadBtn = document.getElementById("btn_upload");
@@ -783,8 +958,92 @@ document.addEventListener("paste", (e) => {
   const files = [...e.clipboardData.files];
   if (files.length === 0) return;
   e.preventDefault();
-  showDirPicker("upload category", imgDirs, (dir) => {
-    setUploadDir(dir);
-    uploadFiles(files);
-  });
+  pickDirAndUpload(files);
+});
+
+// 파일 끌어다 놓기 업로드. 페이지 안에서 시작한 드래그(카테고리 탭 순서 변경, 이미지 끌기)는 dragstart 로 걸러낸다
+// (Chrome 은 페이지 안 이미지를 끌 때도 types 에 "Files" 를 넣는다).
+// dragenter/dragleave 는 자식 요소를 지날 때마다 오므로 깊이를 세어 안내 표시가 깜빡이지 않게 한다.
+let internalDrag = false;
+let fileDragDepth = 0;
+const isFileDrag = (e) => !internalDrag && e.dataTransfer?.types.includes("Files");
+const endFileDrag = () => {
+  fileDragDepth = 0;
+  document.body.classList.remove("is-file-dragover");
+};
+document.addEventListener("dragstart", () => {
+  internalDrag = true;
+});
+document.addEventListener("dragend", () => {
+  internalDrag = false;
+  endFileDrag();
+});
+document.addEventListener("dragenter", (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  fileDragDepth++;
+  if (!hasOpenOverlay()) document.body.classList.add("is-file-dragover");
+});
+document.addEventListener("dragleave", (e) => {
+  if (!isFileDrag(e)) return;
+  fileDragDepth = Math.max(0, fileDragDepth - 1);
+  if (fileDragDepth === 0) endFileDrag();
+});
+document.addEventListener("dragover", (e) => {
+  if (!isFileDrag(e)) return;
+  // 막지 않으면 브라우저가 파일을 열어 페이지를 떠난다. 오버레이/다이얼로그가 열려 있으면 놓을 수 없음으로 표시한다
+  e.preventDefault();
+  e.dataTransfer.dropEffect = hasOpenOverlay() ? "none" : "copy";
+});
+document.addEventListener("drop", (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  endFileDrag();
+  if (hasOpenOverlay()) return;
+  const uploadBtn = document.getElementById("btn_upload");
+  if (uploadBtn.disabled) return;
+  if (uploadBtn.classList.contains("needs-google")) {
+    showAlert("Google login required");
+    return;
+  }
+  const files = [...e.dataTransfer.files];
+  if (files.length > 0) pickDirAndUpload(files);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") endFileDrag();
+});
+
+// 파일이 삭제·이동되면 image.js 가 카드를 지운 직후 알린다. 목록에 없던 딥링크 파일이어도 알리므로, 불러온 범위에 있었는지는 여기서 가린다.
+// 이미지 수와 페이지 위치를 맞춘다.
+// 카테고리 화면은 storage offset 이 한 칸 당겨지므로, 이미 불러온 파일이면 줄이지 않을 경우 다음 페이지에서 한 장을 건너뛴다.
+// 풀 화면(latest/my likes/검색)은 offset 이 받아 둔 pool 의 인덱스라 그린 범위는 보정이 필요 없고, 아직 안 그린 항목만 pool 에서 뺀다.
+document.addEventListener("sbbs:item-removed", async (e) => {
+  refreshImageCount();
+  const name = e.detail?.name;
+  if (imagePool.length === 0) {
+    if (loadedNames.delete(name)) {
+      currentOffset = Math.max(0, currentOffset - 1);
+      removedSeq++;
+    }
+  } else {
+    const idx = imagePool.findIndex((f) => f.name === name);
+    if (idx !== -1 && loadedDir === "__search__") {
+      searchCount = Math.max(0, searchCount - 1);
+      renderSearchCount();
+    }
+    if (idx >= currentOffset) {
+      imagePool.splice(idx, 1);
+      // 남은 게 없어졌으면 sentinel 을 숨긴다 (진행 중인 로드는 끝날 때 스스로 다시 맞춘다)
+      if (currentOffset >= imagePool.length) {
+        allImagesLoaded = true;
+        updateSentinel();
+      }
+    }
+  }
+  if (document.querySelector(getItemSelector())) return;
+  // 화면에 남은 항목이 없으면 다음 페이지를 불러오고(진행 중이면 기다림), 더 없으면 빈 상태를 보여준다
+  const gen = loadGeneration;
+  await loadMoreImages();
+  if (gen !== loadGeneration || !allImagesLoaded || document.querySelector(getItemSelector())) return;
+  document.getElementById("images").innerHTML = emptyViewHtml(loadedDir);
 });

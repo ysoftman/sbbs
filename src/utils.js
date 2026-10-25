@@ -103,11 +103,13 @@ export const showAlert = async (message) => {
     .closed;
 };
 
-export const showConfirm = async (message) =>
+// focusCancel: Enter 로 바로 진행하면 안 되는 질문은 Cancel 에 초기 포커스를 둔다 (기본은 OK)
+export const showConfirm = async (message, { focusCancel = false } = {}) =>
   (await openDialog(
     dialogMessageHtml(
       message,
-      '<button class="btn btn-primary" value="ok" autofocus>OK</button><button class="btn" value="cancel">Cancel</button>',
+      `<button class="btn btn-primary" value="ok"${focusCancel ? "" : " autofocus"}>OK</button>` +
+        `<button class="btn" value="cancel"${focusCancel ? " autofocus" : ""}>Cancel</button>`,
     ),
   ).closed) === "ok";
 

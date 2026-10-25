@@ -6,11 +6,14 @@ Image/video gallery web app using Supabase Storage, Auth, and Database.
 
 - Browse images/videos by category (directory), sorted by newest, with infinite scroll
 - Google / Anonymous sign-in
-- Per-image comments: create/delete (10,000 bytes limit, load more in batches of 5)
-- File upload (images 5MB, mp4 10MB, with directory selection)
+- Per-image comments: create/delete (10,000 bytes limit, load more in batches of 5); admins can delete any comment
+- File upload via button, paste, or drag and drop (images 5MB, mp4 10MB, with directory selection)
+  - Supported types: JPEG, PNG, GIF, WebP, BMP, MP4 (SVG is rejected because a scripted SVG would run on the storage origin)
+  - JPEG/PNG/WebP/BMP are re-encoded before upload (EXIF stripped, downscaled to at most 2560×2560 px of area,
+    PNG/BMP/lossless WebP kept lossless where possible); the 5MB limit applies after re-encoding
 - Delete your own uploaded files; admins can delete any file
 - Admins can add (empty) categories
-- URL hash-based deep linking (`#category`, `#category/filename`)
+- URL-based deep linking (`#category`, `#category/filename`, search `?q=`)
 
 ## Initial Setup After Creating a Supabase Project
 
@@ -55,6 +58,9 @@ cp .env.example .env
 # You can upload image files via drag-and-drop in the dashboard
 ```
 
+Set the bucket upload limits (`file_size_limit`, `allowed_mime_types`) as server-side enforcement of the client checks;
+see [DATABASE.md](DATABASE.md#storage-버킷-업로드-제한-storagebuckets).
+
 ### Storage Policy Setup
 
 Run the `storage.objects` policies (read: public, upload: Google users, delete: uploader or admin, move: admin)
@@ -74,6 +80,9 @@ To work around this, the app generates a unique ASCII-only storage key for every
 preserved in the `image_info.display_name` column and used for all on-screen display and search.
 
 - Upload: `병아리.jpg` → storage path `<timestamp>-<random>.jpg`, `image_info.display_name = "병아리.jpg"`
+- The key's extension comes from the MIME type. When re-encoding changes the format (usually PNG/BMP → WebP; PNG, or JPEG
+  for opaque images, on browsers without WebP encoding such as Safari), the `display_name` extension changes too
+  (e.g. `병아리.png` → `병아리.webp`).
 - `display_name` requires a database migration (see [DATABASE.md](DATABASE.md)). Existing rows are backfilled
   with the file name part of `file_path`; rows still missing it fall back to the storage key.
 

@@ -144,8 +144,12 @@ CREATE POLICY "Allow update for admin" ON image_messages
     EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid())
   );
 
-CREATE POLICY "Allow delete own messages" ON image_messages
-  FOR DELETE USING (auth.uid() = user_id);
+-- 본인 댓글 또는 admin 은 남의 댓글도 삭제
+CREATE POLICY "Allow delete" ON image_messages
+  FOR DELETE USING (
+    auth.uid() = user_id
+    OR EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid())
+  );
 
 CREATE TRIGGER image_messages_set_author BEFORE INSERT ON image_messages
   FOR EACH ROW EXECUTE FUNCTION set_author();
@@ -234,6 +238,40 @@ CREATE POLICY "images move (admin)" ON storage.objects
     bucket_id = 'images'
     AND EXISTS (SELECT 1 FROM public.admins WHERE admins.user_id = auth.uid())
   );
+```
+
+## Storage 버킷 업로드 제한 (storage.buckets)
+
+클라이언트(`uploadFile`)의 크기/MIME 검사는 우회 가능하므로 버킷 설정으로 서버에서도 막는다. 신규·기존 프로젝트 모두 한 번 실행하며,
+이미 올라간 객체에는 영향이 없다. Dashboard 의 Storage > `images` 버킷 > Edit bucket 에서 같은 값을 설정해도 된다.
+
+- `file_size_limit`: 허용 크기 중 가장 큰 영상 10MB 기준. 이미지 5MB 상한은 클라이언트만 검사한다
+  (jpeg/png/webp/bmp 는 업로드 전에 픽셀 면적 2560×2560 이하로 축소·재인코딩되므로 보통 5MB 보다 훨씬 작다).
+- `allowed_mime_types`: `src/storage.js` 의 `TYPE_EXTENSIONS` 와 같은 목록을 유지한다. 서버는 파일 내용이 아니라 업로드 요청이
+  선언한 `Content-Type` 만 검사하고, 객체는 그 타입으로 서빙된다. 공개 객체 응답에는 CSP/`nosniff` 헤더가 없어서
+  `text/html`, `image/svg+xml` 처럼 브라우저가 문서로 렌더링하는 타입이 올라가면 객체 URL 을 직접 열 때 스크립트가
+  storage origin(`<project-id>.supabase.co`)에서 실행된다. 그래서 목록을 래스터 이미지와 mp4 로만 한정한다 (svg 도 받지 않는다).
+- 카테고리 placeholder(`.emptyFolderPlaceholder`)도 이 제한을 받는다. type 이 빈 Blob 은 multipart 파트가
+  `application/octet-stream` 으로 전송돼 막히므로 `createDir` 은 허용 목록의 `image/png` 타입을 붙인 0 바이트 Blob 으로 올린다
+  (예전 방식으로 만든 production 의 placeholder 는 `application/octet-stream` 으로 저장돼 있다).
+  `application/octet-stream` 이나 텍스트 타입을 허용 목록에 넣으면 임의 파일을 올릴 수 있게 되므로 넣지 않는다.
+  같은 이유로 Dashboard 의 폴더 생성은 막힐 수 있으니 카테고리는 앱의 category 버튼으로 만든다.
+- 이미 올라간 svg 는 그대로 남는다. 아래 확인 쿼리로 찾아 앱(업로더/admin 삭제)이나 Dashboard 에서 지운다.
+  2026-10-25 에 production 버킷을 조회했을 때 svg 객체는 없었다.
+
+```sql
+UPDATE storage.buckets
+SET file_size_limit = 10485760, -- 10MB
+    allowed_mime_types = ARRAY[
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'video/mp4'
+    ]
+WHERE id = 'images';
+
+-- 확인
+SELECT id, public, file_size_limit, allowed_mime_types FROM storage.buckets WHERE id = 'images';
+
+-- 기존 svg 객체 확인
+SELECT name FROM storage.objects WHERE bucket_id = 'images' AND metadata->>'mimetype' = 'image/svg+xml';
 ```
 
 ## category_bookmarks 테이블 (제거됨)
@@ -417,4 +455,22 @@ CREATE POLICY "images delete (owner or admin)" ON storage.objects
 
 -- storage 업로드: 조건이 bucket_id 뿐이라 익명도 업로드 가능 → 제거 ("Allow upload for google" 만 남긴다)
 DROP POLICY "Authenticated users can upload" ON storage.objects;
+```
+
+### image_messages 삭제 정책에 admin 추가
+
+본인 댓글만 지울 수 있던 정책을 본인 또는 admin 으로 바꾼다 (admin 이 남의 댓글을 정리할 수 있도록).
+다시 실행해도 되도록 새 정책 이름도 먼저 DROP 한다.
+
+```sql
+DROP POLICY IF EXISTS "Allow delete own messages" ON image_messages;
+DROP POLICY IF EXISTS "Allow delete" ON image_messages;
+CREATE POLICY "Allow delete" ON image_messages
+  FOR DELETE USING (
+    auth.uid() = user_id
+    OR EXISTS (SELECT 1 FROM admins WHERE admins.user_id = auth.uid())
+  );
+
+-- 확인
+SELECT policyname, cmd, qual FROM pg_policies WHERE schemaname = 'public' AND tablename = 'image_messages';
 ```
