@@ -21,10 +21,10 @@ Image/video gallery web app using Supabase Storage, Auth, and Database.
 # Create a new project at https://supabase.com/dashboard
 # Check Settings > General > Project ID and compose the Project URL (note: .co, not .com)
 # Check Settings > API Keys > Publishable and secret API keys tab
-# Create .env (gitignored) from .env.example; src/supabase_config.js reads these Vite env vars
+# Create .env (gitignored) from .env.example; Bun inlines these PUBLIC_* env vars into src/supabase_config.js
 cp .env.example .env
-# VITE_SUPABASE_URL=https://<project-id>.supabase.co
-# VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+# PUBLIC_SUPABASE_URL=https://<project-id>.supabase.co
+# PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
 ## Supabase Dashboard Configuration
@@ -98,8 +98,11 @@ Related issues:
 # Install packages (first time only)
 bun install
 
-# Local development (vite handles build + serving automatically)
+# Local development (Bun dev server with HMR, dev.js)
 bun dev
+
+# Production build into dist/ (build.js)
+bun run build
 
 # Local preview
 # http://localhost:5173/sbbs/

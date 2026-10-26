@@ -1,0 +1,4 @@
+# dev.js 개발 서버의 HTML 번들링 설정 (배포 빌드 설정은 build.js)
+[serve.static]
+env = "PUBLIC_*"
+define = { __LAST_VERSION_TAG__ = "\"dev\"", __LAST_COMMIT_HASH__ = "\"dev\"", __LAST_COMMIT_DATE__ = "\"dev\"", __LAST_COMMIT_MESSAGE__ = "\"dev\"" }

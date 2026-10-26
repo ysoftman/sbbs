@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>sbbs</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./public/favicon.svg" />
     <meta
       name="description"
       content="sbbs - a tiny board for sharing images"
@@ -25,7 +25,7 @@
         document.documentElement.classList.toggle("light", light);
       } catch {}
     </script>
-    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+    <link rel="preconnect" href="%PUBLIC_SUPABASE_URL%" crossorigin />
   </head>
   <body>
     <header class="sticky-header">
@@ -110,7 +110,7 @@
                     sharing images</span
                   ><br />
                   <span class="t-muted"
-                    >built with vanilla JS, Vite and Supabase</span
+                    >built with vanilla JS, Bun and Supabase</span
                   ><br />
                   <span id="version"></span>
                 </p>

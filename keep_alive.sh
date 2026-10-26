@@ -9,8 +9,8 @@
 # 1. 환경변수 파일 로드 및 가공
 . $HOME/workspace/sbbs/.env
 
-supabase_url=$(echo $VITE_SUPABASE_URL | tr -d '"')
-supabase_pub_key=$(echo $VITE_SUPABASE_PUBLISHABLE_KEY | tr -d '"')
+supabase_url=$(echo $PUBLIC_SUPABASE_URL | tr -d '"')
+supabase_pub_key=$(echo $PUBLIC_SUPABASE_PUBLISHABLE_KEY | tr -d '"')
 
 # 2. Supabase API 호출 및 로그 기록
 # /rest/v1/ 루트 엔드포인트는 secret key 를 요구해 publishable key 로는 401 이 난다.

@@ -10,12 +10,11 @@
     "@supabase/supabase-js": "^2.112.4"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.10",
-    "vite": "^8.2.2"
+    "@biomejs/biome": "^2.5.10"
   },
   "description": "simple bbs",
   "scripts": {
-    "dev": "bun --bun vite",
-    "build": "bun --bun vite build"
+    "dev": "bun dev.js",
+    "build": "bun build.js"
   }
 }

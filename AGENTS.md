@@ -4,12 +4,12 @@ Guidance for AI agents working in this repository.
 
 ## Project Overview
 
-**sbbs** (simple bbs) is a single-page image/video gallery web app. Vanilla JS (no framework), Vite build, Supabase backend (Storage + Postgres + Auth + one Edge Function), deployed to GitHub Pages. There is **no test suite** — verification is manual via `bun dev`.
+**sbbs** (simple bbs) is a single-page image/video gallery web app. Vanilla JS (no framework), Bun bundler/dev server (no Vite), Supabase backend (Storage + Postgres + Auth + one Edge Function), deployed to GitHub Pages. There is **no test suite** — verification is manual via `bun dev`.
 
 ## Commands
 
 - Package manager: **bun** (never npm). `bun install`, `bun dev`, `bun run build`
-- No Node needed: scripts run Vite on the Bun runtime (`bun --bun vite`); vite's `#!/usr/bin/env node` shebang would otherwise pick up any installed node
+- No Node/Vite: `bun dev` runs `dev.js` (`Bun.serve` HTML import, settings in `bunfig.toml` `[serve.static]`); `bun run build` runs `build.js` (`Bun.build` → `dist/`)
 - Lint/format: **Biome** (`biome.json`, devDependency, no npm script) — run `bunx biome check --write` after code changes
 - Markdown lint: **rumdl** (`.rumdl.toml`, line-length rule disabled)
 - Edge Function deploy: `supabase functions deploy og-preview --no-verify-jwt` (see `OG.md`)
@@ -17,12 +17,13 @@ Guidance for AI agents working in this repository.
 
 ## Environment Setup
 
-The app reads Supabase credentials from Vite env vars, not from a hardcoded config:
+The app reads Supabase credentials from `PUBLIC_*` env vars inlined at bundle time, not from a hardcoded config:
 
-- Local dev: create `.env` from `.env.example` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `src/supabase_config.js` just re-exports `import.meta.env.VITE_*` (committed; only `.env` is gitignored)
+- Local dev: create `.env` from `.env.example` with `PUBLIC_SUPABASE_URL` and `PUBLIC_SUPABASE_PUBLISHABLE_KEY` (`keep_alive.sh` sources the same file)
+- `src/supabase_config.js` just re-exports `process.env.PUBLIC_*` (committed; only `.env` is gitignored). Bun inlines only `process.env.*`, not `import.meta.env.*`
+- `index.html`'s `%PUBLIC_SUPABASE_URL%` is replaced by `build.js` only; in dev it stays literal (harmless preconnect)
 - CI injects `.env` from GitHub Secrets (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`)
-- Dev server runs at `http://localhost:5173/sbbs/` (vite `base: "/sbbs/"`)
+- Dev server runs at `http://localhost:5173/sbbs/` (fixed in `dev.js` to match the Supabase/Google OAuth redirect allow-lists); production assets use `publicPath: "/sbbs/"`
 
 ## Code Organization
 
@@ -57,7 +58,7 @@ Single entry point: `index.html` → `src/index.js`. All DOM manipulation is han
 6. **Pagination**: fetch `pageSize + 1` rows to detect `hasMore`, then slice.
 7. **XSS**: user content is interpolated into `innerHTML` everywhere — always pass it through `escapeHtml()` (`src/utils.js`).
 8. **Share links**: production shares the `og-preview` Edge Function URL (crawler-friendly); localhost shares the SPA `#hash` link, because the Edge Function's `SITE_URL` points at production. Touch devices (`pointer: coarse`) with `navigator.share` open the native share sheet instead of copying (cancel is ignored, other failures fall back to the clipboard). Hash routing format: `#category` / `#category/filename` (decoded with `decodeURIComponent`); search is `?q=`. The URL can carry both: moving to a category changes only the fragment and keeps `?q=`, so Back fires `hashchange` and restores the search. On startup and `hashchange` a valid category hash wins over `?q=`, then latest.
-9. **`vite.config.js` injects build-time globals** (`__LAST_VERSION_TAG__`, `__LAST_COMMIT_HASH__`, etc.) read from the local `main` branch via `execSync` — builds outside a git checkout fall back to `"unknown"`.
+9. **`build.js` injects build-time globals** (`__LAST_VERSION_TAG__`, `__LAST_COMMIT_HASH__`, etc.) read from the local `main` branch via `Bun.$` — builds outside a git checkout fall back to `"unknown"`. The dev server gets fixed `"dev"` values from `bunfig.toml`; a new global must be added to both, or it is a `ReferenceError` in dev.
 10. **Supabase free-tier dormancy**: `keep_alive.sh` is a cron script that keeps the project awake; it must hit a real table (`/rest/v1/image_info`), not the REST root (401 with publishable key).
 11. **List fetch contract**: `getImageDirs` / `getImageList` return `null` on error and `[]` when truly empty. Show the retry state for `null`; never treat it as an empty category.
 12. **Overlay history entry**: opening the overlay pushes one same-URL history entry (`{ sbbsOverlay: true }`) and remembers that URL; browser back (popstate) closes it. On UI close it calls `history.back()` only if the marker is on top **and** `location.href` still equals the pushed URL; if the URL changed while it was open, it just clears the marker with `replaceState(null, ...)`, because going back would undo the new URL. Code that rewrites the URL keeps `history.state` (`replaceState(history.state, ...)`); the overlay's href check decides what closing does.

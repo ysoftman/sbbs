@@ -28,8 +28,8 @@ jobs:
       - name: Create .env
         run: |
           cat << 'EOF' > .env
-          VITE_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          PUBLIC_SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           EOF
 
       - name: Install dependencies
