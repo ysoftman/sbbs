@@ -95,9 +95,6 @@ Related issues:
 ## Project Deployment
 
 ```bash
-# Pin and install the Node version for this project using mise
-mise use node@24
-
 # Install packages (first time only)
 bun install
 

@@ -9,7 +9,7 @@ Guidance for AI agents working in this repository.
 ## Commands
 
 - Package manager: **bun** (never npm). `bun install`, `bun dev`, `bun run build`
-- Node version pinned by `mise.toml` (`mise install` if node is missing)
+- No Node needed: scripts run Vite on the Bun runtime (`bun --bun vite`); vite's `#!/usr/bin/env node` shebang would otherwise pick up any installed node
 - Lint/format: **Biome** (`biome.json`, devDependency, no npm script) — run `bunx biome check --write` after code changes
 - Markdown lint: **rumdl** (`.rumdl.toml`, line-length rule disabled)
 - Edge Function deploy: `supabase functions deploy og-preview --no-verify-jwt` (see `OG.md`)
