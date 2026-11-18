@@ -955,7 +955,14 @@ document.addEventListener("paste", (e) => {
   if (isTypingInField() || hasOpenOverlay()) return;
   const uploadBtn = document.getElementById("btn_upload");
   if (uploadBtn.disabled || uploadBtn.classList.contains("needs-google")) return;
-  const files = [...e.clipboardData.files];
+  // 복사한 이미지 데이터는 브라우저가 항상 "image.png" 로 이름 붙이므로 붙여넣은 시각 + 난수로 바꿔 구분한다
+  // (파일 자체를 복사해 붙여넣으면 원래 파일명이 오므로 그대로 둔다)
+  const stamp = new Date().toLocaleString("sv").replace(" ", "_").replaceAll(":", "");
+  const files = [...e.clipboardData.files].map((f) =>
+    f.name === "image.png"
+      ? new File([f], `paste_${stamp}_${crypto.randomUUID().slice(0, 6)}.png`, { type: f.type })
+      : f,
+  );
   if (files.length === 0) return;
   e.preventDefault();
   pickDirAndUpload(files);
