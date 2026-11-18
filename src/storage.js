@@ -47,7 +47,10 @@ export const getImageDirs = async (path) => {
 };
 
 // supabase storage 에 저장된 이미지 list (최신순, 페이지네이션. 오류 시 null, 파일이 없으면 [])
-export const getImageList = async (path, offset = 0, limit = 1000) => {
+// 카테고리 placeholder 는 최신순 목록의 맨 뒤에 있다는 보장이 없다 (카테고리를 만든 뒤 옮겨 온 파일이 원래 created_at 을
+// 유지하면 placeholder 가 더 최신이다). 그래서 페이지 단위로 읽는 쪽은 allRows 로 파일이 아닌 행(isFile: false)까지 받아
+// storage 행 수로 hasMore·offset 을 센 뒤 거른다
+export const getImageList = async (path, offset = 0, limit = 1000, { allRows = false } = {}) => {
   const { data, error } = await supabase.storage.from(STORAGE_BUCKET).list(path, {
     limit: limit,
     offset: offset,
@@ -57,15 +60,14 @@ export const getImageList = async (path, offset = 0, limit = 1000) => {
     console.warn("getImageList error:", error);
     return null;
   }
-  // 파일은 id가 null이 아닌 항목 (카테고리 placeholder 제외. 가장 오래된 항목이라 페이지네이션 hasMore 판정에 영향 없음)
-  const files = data
-    .filter((item) => item.id !== null && item.name !== FOLDER_PLACEHOLDER)
-    .map((item) => ({
-      name: path === "" || path === "/" ? item.name : `${path}/${item.name}`,
-      created_at: item.created_at,
-      size: item.metadata?.size || 0,
-    }));
-  return files;
+  const rows = data.map((item) => ({
+    name: path === "" || path === "/" ? item.name : `${path}/${item.name}`,
+    created_at: item.created_at,
+    size: item.metadata?.size || 0,
+    // 폴더는 id 가 null 인 항목
+    isFile: item.id !== null && item.name !== FOLDER_PLACEHOLDER,
+  }));
+  return allRows ? rows : rows.filter((row) => row.isFile);
 };
 
 // supabase database 조회수 조회 및 증가
@@ -112,7 +114,7 @@ export const moveFile = async (oldPath, newDir) => {
 
 // 빈 카테고리 생성 (admin 전용 UI)
 // type 이 빈 Blob 은 multipart 파트가 application/octet-stream 으로 전송돼 버킷 allowed_mime_types 에 막히므로
-// 허용 목록의 타입을 붙인다. 0 바이트라 이미지로 표시될 일은 없고 getImageList 가 걸러낸다.
+// 허용 목록의 타입을 붙인다. 0 바이트라 이미지로 표시될 일은 없고 getImageList 가 파일이 아닌 행(isFile: false)으로 구분한다.
 export const createDir = async (dir) => {
   const placeholder = new Blob([], { type: "image/png" });
   const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(`${dir}/${FOLDER_PLACEHOLDER}`, placeholder);
@@ -138,10 +140,24 @@ export const deleteFile = async (filePath) => {
       return false;
     }
   }
-  const { error: storageErr } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
+  const { data: removed, error: storageErr } = await supabase.storage.from(STORAGE_BUCKET).remove([filePath]);
   if (storageErr) {
     await showAlert(`Delete error: ${storageErr.message}`);
     return false;
+  }
+  // RLS 에 막혀도, 파일이 이미 없어도 오류 없이 빈 배열이 온다. 파일이 남아 있으면 막힌 것이므로 메타데이터를 지우지 않는다.
+  // 이미 없으면(이전 삭제가 image_info 단계에서 실패한 경우 등) 남은 image_info 행만 정리하도록 이어 간다
+  if (!removed?.length) {
+    let fileExists = true;
+    try {
+      ({ data: fileExists } = await supabase.storage.from(STORAGE_BUCKET).exists(filePath));
+    } catch (err) {
+      console.warn("exists check failed:", err);
+    }
+    if (fileExists) {
+      await showAlert("Delete failed: the file was not removed (check RLS policy on storage.objects)");
+      return false;
+    }
   }
   // image_messages / image_likes 는 image_info FK CASCADE 로 자동 삭제된다
   const { error: dbErr } = await supabase.from("image_info").delete().eq("file_path", filePath);
@@ -253,6 +269,17 @@ const reencodeImage = async (file) => {
     // iOS Safari 는 canvas 메모리 총량 제한이 있어 GC 를 기다리지 않고 바로 해제한다 (연속 업로드 시 getContext 실패 방지)
     if (canvas) Object.assign(canvas, { width: 0, height: 0 });
   }
+};
+
+// 올릴 수 있는 형식의 파일만 남긴다. 걸러진 파일은 파일마다 묻지 않고 한 번에 알린다
+export const filterUploadable = async (files) => {
+  const skipped = files.filter((f) => !ALLOWED_TYPES.includes(f.type));
+  if (skipped.length > 0) {
+    await showAlert(
+      `Skipped unsupported files: ${skipped.map((f) => f.name).join(", ")}\nAllowed: ${Object.values(TYPE_EXTENSIONS).join(", ")}`,
+    );
+  }
+  return files.filter((f) => ALLOWED_TYPES.includes(f.type));
 };
 
 // 파일 업로드

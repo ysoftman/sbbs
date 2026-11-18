@@ -3,6 +3,7 @@ import { INITIAL_LIMIT, reloadMessageLists, renderMessages, saveMessage } from "
 import { deleteFile, getImageDirs, moveFile, STORAGE_BUCKET } from "./storage.js";
 import { supabaseUrl } from "./supabase_config.js";
 import {
+  emptyStateHtml,
   escapeHtml,
   formatCount,
   formatDate,
@@ -176,10 +177,16 @@ const syncLikeState = (name, liked, likeCount) => {
   }
 };
 
-// 좋아요 핸들러 (likeEl 은 buildLikeHtml 의 바깥 span). 구글 로그인 사용자만 토글, 그 외는 로그인 안내
-const setupLikeHandler = (likeEl, name, currentUser) => {
+// 좋아요 핸들러 (likeEl 은 buildLikeHtml 의 바깥 span). 구글 로그인 사용자만 토글, 그 외는 로그인 안내.
+// unavailable: 좋아요 상태를 못 받았다. toggle_like 는 이미 누른 좋아요를 지우므로 모르는 상태에서는 토글하지 않는다
+const setupLikeHandler = (likeEl, name, currentUser, unavailable = false) => {
   const heartEl = likeEl?.querySelector(".like-heart");
   if (!heartEl) return;
+  if (unavailable) {
+    heartEl.title = "couldn't load likes";
+    heartEl.addEventListener("click", () => showAlert("couldn't load likes, reload the page"));
+    return;
+  }
   if (!currentUser || currentUser.is_anonymous) {
     heartEl.addEventListener("click", () => showAlert("Google login required"));
     return;
@@ -203,6 +210,11 @@ const setupLikeHandler = (likeEl, name, currentUser) => {
     }
   });
 };
+
+// 정보 조회 실패 안내 (목록 카드·오버레이 공통). 빈 상태("No comments yet")와 구분되게 보여준다
+const loadErrorHtml = (extraHtml = "") =>
+  `<p class="msg-empty msg-load-error"><i class="ph-fill ph-warning-circle" aria-hidden="true"></i>Couldn't load` +
+  `${extraHtml}</p>`;
 
 // 댓글 입력폼 (리스트 카드·오버레이 공통). 로그인 사용자에게만 setupMessageForm 이 보여준다
 const messageFormHtml =
@@ -358,7 +370,11 @@ const createOverlayDialog = () => {
     pressedBackdrop = e.target === dialog;
   });
   dialog.addEventListener("click", (e) => {
-    if (e.target === dialog && pressedBackdrop) dialog.close();
+    if (e.target !== dialog || !pressedBackdrop) return;
+    // 쓰던 댓글이 있으면 배경 클릭으로는 닫지 않고 입력란으로 돌려보낸다 (닫기 버튼·Esc 는 그대로 닫힌다)
+    const draft = dialog.querySelector("textarea");
+    if (draft?.value.trim()) draft.focus();
+    else dialog.close();
   });
   // 쓰던 댓글이 있으면 Esc 는 입력란에서 빠져나오기만 하고, 한 번 더 누르면 닫힌다
   dialog.addEventListener("cancel", (e) => {
@@ -455,15 +471,20 @@ const renderOverlayContent = (dialog, url, name, displayName) => {
   copyBtn.addEventListener("click", () => shareDeepLink(name, displayName, copyBtn));
   const downloadBtn = wrap.querySelector(".img-overlay-download");
   downloadBtn.addEventListener("click", () => downloadFile(url, displayName, downloadBtn));
+  const media = wrap.querySelector(".img-overlay-media");
+  // 삭제·이동된 파일의 딥링크는 storage 가 4xx 를 돌려준다. 깨진 미디어 대신 이유를 보여 주고 받을 게 없으니 다운로드를 뺀다
+  media.addEventListener("error", () => {
+    media.outerHTML = emptyStateHtml("image-broken", "Couldn't load this file", "It may have been deleted or moved.");
+    downloadBtn.remove();
+  });
   if (isVideo) return;
-  const img = wrap.querySelector(".img-overlay-media");
   const showSize = () => {
-    if (img.naturalWidth) {
-      wrap.querySelector(".img-overlay-size").textContent = `${img.naturalWidth} x ${img.naturalHeight}`;
+    if (media.naturalWidth) {
+      wrap.querySelector(".img-overlay-size").textContent = `${media.naturalWidth} x ${media.naturalHeight}`;
     }
   };
-  if (img.complete) showSize();
-  img.addEventListener("load", showSize);
+  if (media.complete) showSize();
+  media.addEventListener("load", showSize);
 };
 
 // 업로더·좋아요·댓글과 파일 조작 버튼을 채운다. 권한은 목록 카드(setupImageHandlers)와 같다
@@ -519,9 +540,9 @@ const loadOverlayDetails = async (dialog, name, displayName, resultPromise, seq)
     return;
   }
   const list = dialog.querySelector(".img-overlay-side .msg-list");
-  list.innerHTML =
-    `<p class="msg-empty msg-load-error"><i class="ph-fill ph-warning-circle" aria-hidden="true"></i>Couldn't load` +
-    `<button type="button" class="btn msg-retry-btn"><i class="ph-fill ph-arrow-clockwise"></i> retry</button></p>`;
+  list.innerHTML = loadErrorHtml(
+    '<button type="button" class="btn msg-retry-btn"><i class="ph-fill ph-arrow-clockwise"></i> retry</button>',
+  );
   list.querySelector(".msg-retry-btn").addEventListener("click", () => {
     list.innerHTML = loadingIndicatorHtml();
     // 누른 retry 버튼이 사라지므로 포커스를 dialog 로 돌려 ←/→ 키를 계속 받는다
@@ -569,7 +590,11 @@ export const showOverlayByName = async (name) => {
   const {
     data: { publicUrl },
   } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(name);
+  // 조회하는 사이 다른 화면으로 옮겼거나 오버레이를 열고 닫았으면(overlaySeq 가 오른다) 늦게 온 딥링크는 띄우지 않는다
+  const href = window.location.href;
+  const seq = overlaySeq;
   const result = await fetchOverlayInfo(name);
+  if (window.location.href !== href || overlaySeq !== seq) return;
   showImageOverlay(publicUrl, name, result.info?.display_name || name, result);
 };
 
@@ -594,12 +619,12 @@ const buildGridItemHtml = (name, publicUrl, likeCountMap, userLikeSet, displayNa
 
 // 그리드 모드 이벤트 핸들러 (썸네일·제목 클릭 → 오버레이, 좋아요). 영상 썸네일도 오버레이에서 재생한다.
 // 삭제/이동은 오버레이에서 한다
-const setupGridHandlers = (name, currentUser, displayName) => {
+const setupGridHandlers = (name, currentUser, displayName, infoFailed) => {
   const card = document.getElementById(`grid_${toSafeId(name)}`);
   if (!card) return;
   bindOverlayOpen(card.querySelector(".grid-thumb"), name, displayName);
   bindOverlayOpen(card.querySelector(".grid-card-name"), name, displayName);
-  setupLikeHandler(card.querySelector(".grid-card-like"), name, currentUser);
+  setupLikeHandler(card.querySelector(".grid-card-like"), name, currentUser, infoFailed);
 };
 
 // 이미지/비디오 HTML 생성
@@ -648,8 +673,8 @@ const buildImageHtml = (name, metaMap, uploaderMap, publicUrl, likeCountMap, use
   );
 };
 
-// 이벤트 핸들러 등록 (썸네일 클릭, 삭제, 이동, 메시지 등)
-const setupImageHandlers = (name, currentUser, admin, uploaderMap, messageMap, displayName) => {
+// 이벤트 핸들러 등록 (썸네일 클릭, 삭제, 이동, 메시지 등). infoFailed: image_info(좋아요·댓글) 조회 실패
+const setupImageHandlers = (name, currentUser, admin, uploaderMap, messageMap, displayName, infoFailed) => {
   const isImage = !isVideoName(name);
   const msgId = toSafeId(name);
   const id = isImage ? `${msgId}_img` : `${msgId}_video`;
@@ -691,9 +716,11 @@ const setupImageHandlers = (name, currentUser, admin, uploaderMap, messageMap, d
       delEl.querySelector(".img-file-delete-btn").addEventListener("click", () => confirmDeleteFile(name, displayName));
     }
   }
-  setupLikeHandler(card.querySelector(".img-like"), name, currentUser);
-  // 메시지 렌더 (loadImages 가 image_info 임베드로 미리 받아온 rows)
-  renderMessages(card.querySelector(".msg-list"), name, currentUser?.id, messageMap[name] || [], 0, admin);
+  setupLikeHandler(card.querySelector(".img-like"), name, currentUser, infoFailed);
+  // 메시지 렌더 (loadImages 가 image_info 임베드로 미리 받아온 rows). 조회에 실패했으면 빈 상태 대신 오류를 보여준다
+  const msgList = card.querySelector(".msg-list");
+  if (infoFailed) msgList.innerHTML = loadErrorHtml();
+  else renderMessages(msgList, name, currentUser?.id, messageMap[name] || [], 0, admin);
   // 로그인한 사용자만 메시지 입력 가능
   setupMessageForm(card.querySelector(".img-message"), name, currentUser);
 };
@@ -719,6 +746,7 @@ export const loadImages = async (
   const likeCountMap = {};
   const userLikeSet = new Set();
   const messageMap = {};
+  let infoFailed = false;
   if (imageNames.length > 0) {
     const msgSelect = isGrid ? "" : ", image_messages(id, message, user_name, user_id, created_at)";
     let query = supabase
@@ -734,6 +762,7 @@ export const loadImages = async (
     const { data, error } = await query;
     if (isStale()) return;
     if (error) console.warn("image_info error:", error);
+    infoFailed = !!error;
     for (const row of data || []) {
       uploaderMap[row.file_path] = row;
       likeCountMap[row.file_path] = row.image_likes.length;
@@ -754,7 +783,7 @@ export const loadImages = async (
       document.getElementById(htmlId).insertAdjacentHTML("beforeend", item);
     }
     for (const name of imageNames) {
-      setupGridHandlers(name, currentUser, displayNameOf(name));
+      setupGridHandlers(name, currentUser, displayNameOf(name), infoFailed);
     }
     return;
   }
@@ -771,6 +800,6 @@ export const loadImages = async (
   if (isStale()) return;
 
   for (const name of imageNames) {
-    setupImageHandlers(name, currentUser, admin, uploaderMap, messageMap, displayNameOf(name));
+    setupImageHandlers(name, currentUser, admin, uploaderMap, messageMap, displayNameOf(name), infoFailed);
   }
 };

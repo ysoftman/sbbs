@@ -1,6 +1,11 @@
 import { rmSync } from "node:fs";
 import { $ } from "bun";
 
+// env 가 없으면 번들에 process.env.* 가 그대로 남아 빈 화면이 배포되므로 빌드를 멈춘다
+for (const key of ["PUBLIC_SUPABASE_URL", "PUBLIC_SUPABASE_PUBLISHABLE_KEY"]) {
+  if (!process.env[key]) throw new Error(`missing env ${key} (see .env.example)`);
+}
+
 const git = async (...args) => {
   const r = await $`git ${args}`.quiet().nothrow();
   return r.exitCode === 0 ? r.text().trim() : null;

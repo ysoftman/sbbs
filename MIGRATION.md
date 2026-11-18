@@ -1,5 +1,7 @@
 # Firebase to Supabase Migration Guide
 
+> 이전 당시의 기록이다. 현재 테이블·RLS 정책·RPC 는 [DATABASE.md](DATABASE.md) 가 기준이며, 아래 예시는 현재 코드와 다를 수 있다.
+
 ## Overview
 
 Firebase 프로젝트를 Supabase로 마이그레이션한 내용을 정리한다.
@@ -105,7 +107,7 @@ runTransaction(db, async (transaction) => {
 });
 
 // Supabase - RPC 함수 호출 (PostgreSQL stored procedure)
-const { data } = await supabase.rpc("increment_visit_cnt", { doc_name: docName });
+const { data } = await supabase.rpc("increment_view_cnt", { doc_name: docName });
 ```
 
 ## 파일 변경 내역
@@ -133,35 +135,8 @@ const { data } = await supabase.rpc("increment_visit_cnt", { doc_name: docName }
 
 ### 3. Database 설정 (SQL Editor에서 실행)
 
-```sql
--- index 테이블 생성
-CREATE TABLE IF NOT EXISTS index (
-  name TEXT PRIMARY KEY,
-  visit_cnt INTEGER DEFAULT 1
-);
-
--- RLS 활성화
-ALTER TABLE index ENABLE ROW LEVEL SECURITY;
-
--- 정책 설정
-CREATE POLICY "Allow read" ON index FOR SELECT USING (true);
-CREATE POLICY "Allow write for authenticated" ON index
-  FOR ALL USING (auth.uid() IS NOT NULL);
-
--- 방문 카운트 원자적 증가 RPC 함수
-CREATE OR REPLACE FUNCTION increment_visit_cnt(doc_name TEXT)
-RETURNS INTEGER AS $$
-DECLARE
-  new_cnt INTEGER;
-BEGIN
-  INSERT INTO index (name, visit_cnt)
-  VALUES (doc_name, 1)
-  ON CONFLICT (name) DO UPDATE SET visit_cnt = index.visit_cnt + 1
-  RETURNING visit_cnt INTO new_cnt;
-  RETURN new_cnt;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
+[DATABASE.md](DATABASE.md) 의 SQL 을 순서대로 실행한다. 조회수 카운터는 `index.view_cnt` 와 `increment_view_cnt` RPC 로만 쓰며,
+`index` 테이블에 클라이언트 쓰기 정책을 두지 않는다.
 
 ### 4. Storage 설정
 

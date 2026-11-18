@@ -4,7 +4,16 @@ import "./common.css";
 
 import { getCurrentUser, isAdmin, supabase } from "./common.js";
 import { loadImages, setLoadMoreHandler, showOverlayByName } from "./image.js";
-import { createDir, getImageDirs, getImageList, getViewCnt, setUploadDir, uploadDir, uploadFile } from "./storage.js";
+import {
+  createDir,
+  filterUploadable,
+  getImageDirs,
+  getImageList,
+  getViewCnt,
+  setUploadDir,
+  uploadDir,
+  uploadFile,
+} from "./storage.js";
 import {
   emptyStateHtml,
   escapeHtml,
@@ -101,18 +110,20 @@ async function loadImg(path) {
   showSentinelLoading();
 
   const pageSize = getPageSize();
-  const imgFiles = await getImageList(path, 0, pageSize + 1);
+  const rows = await getImageList(path, 0, pageSize + 1, { allRows: true });
   // 그 사이에 다른 화면 전환이 일어났다면 결과 폐기
   if (gen !== loadGeneration) return;
-  if (imgFiles === null) {
+  if (rows === null) {
     showLoadError(() => loadImg(path));
     updateSentinel();
     return;
   }
-  const hasMore = imgFiles.length > pageSize;
-  const filesToLoad = hasMore ? imgFiles.slice(0, pageSize) : imgFiles;
+  // hasMore·offset 은 storage 행 기준 (getImageList 의 placeholder 설명 참고)
+  const hasMore = rows.length > pageSize;
+  const pageRows = rows.slice(0, pageSize);
+  const filesToLoad = pageRows.filter((f) => f.isFile);
   allImagesLoaded = !hasMore;
-  currentOffset = filesToLoad.length;
+  currentOffset = pageRows.length;
 
   if (filesToLoad.length === 0) {
     imagesEl.innerHTML = emptyViewHtml(path);
@@ -157,22 +168,23 @@ async function appendNextPage(gen) {
     } else {
       // 요청 중에 이미 불러온 파일이 삭제·이동되면(removedSeq 증가) 응답이 당겨지기 전/후 어느 순서인지 알 수 없어
       // 한 장을 건너뛸 수 있으므로 그 응답은 버리고 당겨진 offset 으로 다시 요청한다 (연속 삭제에 대비해 최대 3번)
-      let imgFiles = null;
+      let rows = null;
       for (let tries = 0; tries < 3; tries++) {
         const seq = removedSeq;
-        imgFiles = await getImageList(currentDir, currentOffset, pageSize + 1);
+        rows = await getImageList(currentDir, currentOffset, pageSize + 1, { allRows: true });
         // fetch 사이에 화면 전환됐으면 폐기 (이전 카테고리 결과를 새 화면에 append 하는 것 방지)
         if (gen !== loadGeneration) return;
-        if (imgFiles === null || seq === removedSeq) break;
+        if (rows === null || seq === removedSeq) break;
       }
-      if (imgFiles === null) {
+      if (rows === null) {
         failed = true;
         return;
       }
-      const hasMore = imgFiles.length > pageSize;
-      const filesToLoad = hasMore ? imgFiles.slice(0, pageSize) : imgFiles;
+      const hasMore = rows.length > pageSize;
+      const pageRows = rows.slice(0, pageSize);
+      const filesToLoad = pageRows.filter((f) => f.isFile);
       allImagesLoaded = !hasMore;
-      currentOffset += filesToLoad.length;
+      currentOffset += pageRows.length;
 
       if (filesToLoad.length > 0) {
         const imgNames = filesToLoad.map((f) => f.name);
@@ -328,7 +340,8 @@ const reloadCurrentView = () => {
     document.getElementById("search_input").value = searchQuery;
     doSearch();
   } else {
-    loadDirFromHash(parseHash(), true);
+    // 해시가 딥링크(#dir/file)로 남아 있어도 그 이미지를 다시 열지 않도록 지금 카테고리만 다시 불러온다
+    loadDirFromHash({ dir: loadedDir, image: null }, true);
   }
 };
 
@@ -343,15 +356,7 @@ const fetchedDirs = await getImageDirs("");
 const dirsFailed = fetchedDirs === null;
 const imgDirs = fetchedDirs ?? [];
 const showDirsError = () => showLoadError(() => window.location.reload());
-if (dirsFailed) {
-  showDirsError();
-} else if (imgDirs.length === 0) {
-  document.getElementById("images").innerHTML = emptyStateHtml(
-    "folder-open",
-    "No categories yet",
-    "Upload an image to create the first one.",
-  );
-}
+if (dirsFailed) showDirsError();
 
 getViewCnt("ysoftman", "viewcnt");
 
@@ -451,16 +456,19 @@ new ResizeObserver(revealActiveTab).observe(document.querySelector(".cat-tabs"))
 document.fonts?.ready.then(revealActiveTab);
 
 const updateActiveDir = (dir) => {
+  // 활성 탭은 색뿐 아니라 aria-current 로도 알려 스크린리더가 지금 화면을 읽을 수 있게 한다
+  const markTab = (btn, active) => {
+    btn.className = active ? "btn btn-active" : "btn btn-primary";
+    if (active) btn.setAttribute("aria-current", "page");
+    else btn.removeAttribute("aria-current");
+  };
   for (const d of imgDirs) {
     const btn = document.getElementById(`load_${toSafeId(d)}`);
-    if (!btn) continue;
-    btn.className = d === dir ? "btn btn-active" : "btn btn-primary";
+    if (btn) markTab(btn, d === dir);
   }
-  document.getElementById("btn_latest").className = dir === "__latest__" ? "btn btn-active" : "btn btn-primary";
+  markTab(document.getElementById("btn_latest"), dir === "__latest__");
   const myLikesBtn = document.getElementById("btn_my_likes");
-  if (!myLikesBtn.classList.contains("needs-google")) {
-    myLikesBtn.className = dir === "__my_likes__" ? "btn btn-active" : "btn btn-primary";
-  }
+  if (!myLikesBtn.classList.contains("needs-google")) markTab(myLikesBtn, dir === "__my_likes__");
   revealActiveTab();
   // 검색 결과 바는 검색 화면에서만. 다른 화면으로 가면 바로 숨긴다
   searchBar.hidden = dir !== "__search__";
@@ -512,6 +520,16 @@ const loadLatest = async () => {
 
   if (dirsFailed) {
     showDirsError();
+    updateSentinel();
+    return;
+  }
+  // 업로드는 카테고리를 골라야 하므로, 카테고리가 없으면 업로드 안내 대신 카테고리를 추가하라고 알린다
+  if (imgDirs.length === 0) {
+    imagesEl.innerHTML = emptyStateHtml(
+      "folder-open",
+      "No categories yet",
+      "An admin can add one with the category button.",
+    );
     updateSentinel();
     return;
   }
@@ -701,7 +719,8 @@ async function doSearch() {
 
 document.getElementById("btn_search").addEventListener("click", doSearch);
 document.getElementById("search_input").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") doSearch();
+  // 한글 등 IME 조합을 확정하는 Enter 는 isComposing 인 keydown 이 한 번 더 오므로 건너뛴다 (검색이 두 번 나간다)
+  if (e.key === "Enter" && !e.isComposing) doSearch();
 });
 
 // 업로드 대상 카테고리 선택. 카테고리 목록을 못 받았으면 고를 수 없으므로 알리고 끝낸다 (image.js 이동 picker 와 같은 문구)
@@ -929,11 +948,17 @@ const uploadFiles = async (files) => {
       if (success) uploaded++;
     }
     if (uploaded > 0) {
-      // loadImg 만 부르면 loadedDir/활성 버튼/hash 가 이전 화면(latest 등)에 머무르므로 라우팅을 거친다
-      const dir = uploadDir || currentDir;
-      history.replaceState(history.state, "", `#${encodeURIComponent(dir)}`);
-      loadDirFromHash({ dir, image: null }, true);
       refreshImageCount();
+      const dir = uploadDir || currentDir;
+      // 목록을 다시 그리면 리스트 카드에 쓰던 댓글이 지워지므로, 쓰던 댓글이 있으면 이동하지 않고 알리기만 한다
+      const hasDraft = [...document.querySelectorAll("#images textarea")].some((t) => t.value.trim());
+      if (hasDraft) {
+        showAlert(`Uploaded to "${dir}". The list wasn't refreshed to keep your unsent comment.`);
+      } else {
+        // loadImg 만 부르면 loadedDir/활성 버튼/hash 가 이전 화면(latest 등)에 머무르므로 라우팅을 거친다
+        history.replaceState(history.state, "", `#${encodeURIComponent(dir)}`);
+        loadDirFromHash({ dir, image: null }, true);
+      }
     }
   } finally {
     uploadBtn.innerHTML = originalHtml;
@@ -942,19 +967,30 @@ const uploadFiles = async (files) => {
 };
 
 document.getElementById("file_input").addEventListener("change", async (e) => {
-  const files = [...e.target.files];
+  const picked = [...e.target.files];
   e.target.value = "";
+  const files = await filterUploadable(picked);
   if (files.length > 0) await uploadFiles(files);
 });
 
-// 붙여넣기·끌어다 놓기 업로드: 카테고리 선택 후 업로드 버튼과 같은 흐름을 탄다
-const pickDirAndUpload = (files) => pickUploadDir(() => uploadFiles(files));
+// 붙여넣기·끌어다 놓기 업로드: 카테고리 선택 후 업로드 버튼과 같은 흐름을 탄다.
+// 올릴 수 없는 형식은 카테고리를 묻기 전에 걸러 한 번만 알린다
+const pickDirAndUpload = async (files) => {
+  const uploadable = await filterUploadable(files);
+  if (uploadable.length > 0) pickUploadDir(() => uploadFiles(uploadable));
+};
 
 // 클립보드 이미지(copy image) 붙여넣기 업로드
 document.addEventListener("paste", (e) => {
   if (isTypingInField() || hasOpenOverlay()) return;
   const uploadBtn = document.getElementById("btn_upload");
-  if (uploadBtn.disabled || uploadBtn.classList.contains("needs-google")) return;
+  if (uploadBtn.disabled || e.clipboardData.files.length === 0) return;
+  e.preventDefault();
+  // 끌어다 놓기와 같이, 로그인하지 않았으면 조용히 무시하지 않고 알린다
+  if (uploadBtn.classList.contains("needs-google")) {
+    showAlert("Google login required");
+    return;
+  }
   // 복사한 이미지 데이터는 브라우저가 항상 "image.png" 로 이름 붙이므로 붙여넣은 시각 + 난수로 바꿔 구분한다
   // (파일 자체를 복사해 붙여넣으면 원래 파일명이 오므로 그대로 둔다)
   const stamp = new Date().toLocaleString("sv").replace(" ", "_").replaceAll(":", "");
@@ -963,8 +999,6 @@ document.addEventListener("paste", (e) => {
       ? new File([f], `paste_${stamp}_${crypto.randomUUID().slice(0, 6)}.png`, { type: f.type })
       : f,
   );
-  if (files.length === 0) return;
-  e.preventDefault();
   pickDirAndUpload(files);
 });
 
@@ -974,6 +1008,8 @@ document.addEventListener("paste", (e) => {
 let internalDrag = false;
 let fileDragDepth = 0;
 const isFileDrag = (e) => !internalDrag && e.dataTransfer?.types.includes("Files");
+// 오버레이/다이얼로그가 열려 있거나 업로드 중이면 놓아도 무시하므로 드롭 영역도 보이지 않는다
+const isDropBlocked = () => hasOpenOverlay() || document.getElementById("btn_upload").disabled;
 const endFileDrag = () => {
   fileDragDepth = 0;
   document.body.classList.remove("is-file-dragover");
@@ -989,7 +1025,7 @@ document.addEventListener("dragenter", (e) => {
   if (!isFileDrag(e)) return;
   e.preventDefault();
   fileDragDepth++;
-  if (!hasOpenOverlay()) document.body.classList.add("is-file-dragover");
+  if (!isDropBlocked()) document.body.classList.add("is-file-dragover");
 });
 document.addEventListener("dragleave", (e) => {
   if (!isFileDrag(e)) return;
@@ -998,18 +1034,16 @@ document.addEventListener("dragleave", (e) => {
 });
 document.addEventListener("dragover", (e) => {
   if (!isFileDrag(e)) return;
-  // 막지 않으면 브라우저가 파일을 열어 페이지를 떠난다. 오버레이/다이얼로그가 열려 있으면 놓을 수 없음으로 표시한다
+  // 막지 않으면 브라우저가 파일을 열어 페이지를 떠난다. 놓을 수 없는 상태면 놓을 수 없음으로 표시한다
   e.preventDefault();
-  e.dataTransfer.dropEffect = hasOpenOverlay() ? "none" : "copy";
+  e.dataTransfer.dropEffect = isDropBlocked() ? "none" : "copy";
 });
 document.addEventListener("drop", (e) => {
   if (!isFileDrag(e)) return;
   e.preventDefault();
   endFileDrag();
-  if (hasOpenOverlay()) return;
-  const uploadBtn = document.getElementById("btn_upload");
-  if (uploadBtn.disabled) return;
-  if (uploadBtn.classList.contains("needs-google")) {
+  if (isDropBlocked()) return;
+  if (document.getElementById("btn_upload").classList.contains("needs-google")) {
     showAlert("Google login required");
     return;
   }

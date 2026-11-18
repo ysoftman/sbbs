@@ -115,20 +115,26 @@ export const renderMessages = (el, imageName, currentUserId, data, offset = 0, a
   // 더보기 버튼
   if (hasMore) {
     el.insertAdjacentHTML("beforeend", `<div class="msg-more"><button class="btn msg-more-btn">more</button></div>`);
-    el.querySelector(".msg-more-btn").addEventListener("click", () => {
-      loadMessages(el, imageName, currentUserId, newOffset);
+    const moreBtn = el.querySelector(".msg-more-btn");
+    moreBtn.addEventListener("click", () => {
+      // 응답 전에 다시 누르면 같은 offset 의 댓글이 한 번 더 붙으므로 끝날 때까지 막는다
+      moreBtn.disabled = true;
+      loadMessages(el, imageName, currentUserId, newOffset, moreBtn);
     });
   }
 };
 
 // 이미지 메시지 추가 조회 (more 버튼, 5개씩)
-const loadMessages = async (el, imageName, currentUserId, offset) => {
+const loadMessages = async (el, imageName, currentUserId, offset, moreBtn) => {
   // 1개 더 조회하여 다음 페이지 존재 여부 확인
   const [{ data, error }, admin] = await Promise.all([fetchMessages(imageName, offset, MORE_LIMIT), isAdmin()]);
-  if (!el.isConnected) return;
+  // 그 사이 목록이 다시 그려졌거나(저장·삭제 후 reload) 오버레이가 바뀌어 버튼이 사라졌으면 결과를 버린다
+  if (!moreBtn.isConnected) return;
   if (error) {
     console.warn("loadMessages error:", error);
-    el.innerHTML = messageErrorHtml(error);
+    // 이미 보이는 댓글은 그대로 두고 다시 누를 수 있게만 한다
+    moreBtn.textContent = "retry";
+    moreBtn.disabled = false;
     return;
   }
   renderMessages(el, imageName, currentUserId, data || [], offset, admin);

@@ -83,6 +83,8 @@ preserved in the `image_info.display_name` column and used for all on-screen dis
 - The key's extension comes from the MIME type. When re-encoding changes the format (usually PNG/BMP → WebP; PNG, or JPEG
   for opaque images, on browsers without WebP encoding such as Safari), the `display_name` extension changes too
   (e.g. `병아리.png` → `병아리.webp`).
+- Pasted clipboard image data (browsers name it `image.png`) gets a generated `display_name`
+  `paste_<YYYY-MM-DD>_<HHmmss>_<random6>.png` (extension changed if re-encoded); pasted files keep their own name.
 - `display_name` requires a database migration (see [DATABASE.md](DATABASE.md)). Existing rows are backfilled
   with the file name part of `file_path`; rows still missing it fall back to the storage key.
 
@@ -98,14 +100,11 @@ Related issues:
 # Install packages (first time only)
 bun install
 
-# Local development (Bun dev server with HMR, dev.js)
+# Local development (Bun dev server with HMR, dev.js) at http://localhost:5173/sbbs/
 bun dev
 
-# Production build into dist/ (build.js)
+# Production build into dist/ (build.js; fails if the PUBLIC_* vars in .env are missing)
 bun run build
-
-# Local preview
-# http://localhost:5173/sbbs/
 ```
 
 ## GitHub Pages Deployment
@@ -137,4 +136,3 @@ Every push to `main` triggers GitHub Actions to build and deploy.
 - <https://supabase.com/docs/guides/auth>
 - <https://supabase.com/docs/guides/storage>
 - <https://supabase.com/docs/guides/database>
-- <https://nostalgic-css.github.io/NES.css/#installation>

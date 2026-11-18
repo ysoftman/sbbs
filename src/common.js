@@ -116,6 +116,7 @@ const loginAnonymous = async () => {
   const { error } = await supabase.auth.signInAnonymously();
   if (error) {
     console.warn("signInAnonymously error:", error);
+    await showAlert(`anonymous login failed: ${error.message}`);
     return;
   }
   window.location.reload();

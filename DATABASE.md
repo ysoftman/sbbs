@@ -55,7 +55,8 @@ CREATE POLICY "Allow read own row" ON admins
 
 ## set_author 함수 (작성자 필드 서버 기록)
 
-`image_info`, `image_messages` INSERT 시 `user_id`, `user_name` 을 JWT 로 덮어써 다른 사용자 행세를 막는다.
+`image_info`, `image_messages` INSERT 시 `user_id`, `user_name` 을 JWT 로 덮어써 다른 사용자의 `user_id` 로 쓰는 것을 막는다.
+`user_name` 은 JWT 의 `user_metadata.full_name` 이라 사용자가 구글 프로필이나 `auth.updateUser()` 로 정할 수 있는 표시 이름이다.
 RLS `WITH CHECK` 는 BEFORE 트리거 이후에 평가된다. `auth.uid()` 가 없는 SQL Editor / service role 작업은 그대로 둔다.
 
 ```sql
